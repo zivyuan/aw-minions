@@ -1,0 +1,1 @@
+./build/src/main.js
