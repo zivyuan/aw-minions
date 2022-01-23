@@ -8,6 +8,8 @@ import { sleep } from 'sleep'
 // import * as tasks from './tasks/'
 import { Login } from './tasks/'
 import { TaskState } from './Task'
+import Logger from './Logger'
+import Mining from './tasks/mining/Mining'
 // import dingding from './Notify'
 
 interface IBotArguments {
@@ -21,6 +23,7 @@ interface IBotArguments {
  * Main proccess
  */
 (async () => {
+  const logger = new Logger('main')
   //
   // Initial command line arguments
   //
@@ -107,7 +110,7 @@ interface IBotArguments {
       // dingding.markdown(`${MINER_NAME} 启动成功`, `${MINER_NAME} 启动成功`)
 
       // Start main loop after game page loadeds
-      console.log('miner on duty')
+      logger.log('miner on duty')
       // const defTask = taskManager.defaultTask
       // taskManager.start(defTask, browser, mainPage)
       const login = new Login({
@@ -116,17 +119,37 @@ interface IBotArguments {
       })
       login.start(browser, mainPage)
         .then((task: TaskState) => {
-          console.log('Login task complete', task)
+          logger.log('Login task complete', TaskState[task], login.message)
+          automine()
         })
         .catch(async (err) => {
-          console.log('login task error: ', err)
-          // await dingding.markdown(`${argv.username[0]} 异常`, `${err}`, {
-          //   atMobiles: [],
-          //   isAtAll: false
-          // })
+          // const CLS_AVATAR = '.css-1i7t220 .chakra-avatar'
+          // const avatar = await mainPage.$$(CLS_AVATAR)
+          // if (avatar.length === 0) {
+          //   //
+            logger.log('Login error: ', err)
+          // } else {
+          //   // Auto login complete. run other task
+          //   const mining = new Mining()
+          //   mining.start(browser, mainPage)
+          // }
         })
     });
   };
+
+  const automine = () => {
+    logger.log('Start mining...')
+    const mining = new Mining()
+    mining.start(browser, mainPage)
+      .catch(err => {
+        logger.log(err + ', prepare next mining...')
+        // setTimeout(automine, 1.5 * 60 * 1000)
+      })
+      .finally(() => {
+        logger.log('Mine complete, prepare next mining...')
+        setTimeout(automine, 1.5 * 60 * 1000)
+      })
+  }
 
   await loadGame();
 })();

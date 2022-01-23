@@ -1,98 +1,98 @@
 import BaseTask, { TaskState } from "../../Task"
 import { sleep } from 'sleep'
 import config from '../../config'
-import { random } from "../../utils/utils"
 import { Page } from "puppeteer"
+import Logger from "../../Logger"
 
 interface LoginInfo {
   username: string
   password: string
 }
 
+const STEP_LOGIN = 'login'
+const STEP_FILL_FORM = 'fill-form'
+const STEP_CONFIRM = 'confirm'
+
+// Game home page
+const CLS_AVATAR = '.css-1i7t220 .chakra-avatar'
+// Login page
+const CLS_BTN_LOGIN = '.css-yfg7h4 .css-t8p16t'
+const CLS_SPINNER = '.css-yfg7h4 .css-t8p16t .chakra-spinner'
+// Wax login page
+const CLS_BTN_SUBMIT = '.button-container button'
+const CLS_ERROR_CONTAINER = '.button-container .error-container-login'
+
+const logger = new Logger()
 export class Login extends BaseTask {
 
   // private _startTime = 0
   private loginInfo: LoginInfo
 
   constructor(loginInfo: LoginInfo) {
-    super('Login')
+    super('Login Task')
 
     this.loginInfo = loginInfo
+
+    this.registerStep(STEP_LOGIN, this.stepLogin, true)
+    this.registerStep(STEP_FILL_FORM, this.stepFillForm)
+    this.registerStep(STEP_CONFIRM, this.stepConfirm)
+
+    logger.setScope('Login Task')
   }
 
-  protected nextStep() {
-    // this._startTime = new Date().getTime()
-    this.searchLoginButton();
+  protected async tick(name: string) {
+    // const elapse = this.phaseElapseTime
+    const avatar = await this.page.$$(CLS_AVATAR)
+    if (avatar.length) {
+      // Auto login success
+      this.success(TaskState.Completed, 'auto login')
+      return
+    }
+    // if (elapse > config.taskPhaseTimeout) {
+    // }
+
+    super.tick(name)
   }
 
   // Step 1: find button
-  private async searchLoginButton() {
-    const btnClass = '.css-t8p16t'
-    const spinnerClass = `${btnClass} .chakra-spinner`
-    let spinner
-    let loginBtn
+  private async stepLogin() {
+    const loginBtn = await this.page.$$(CLS_BTN_LOGIN)
+    const spinner = await this.page.$$(CLS_SPINNER)
 
-    try {
-      spinner = await this.page.$$(spinnerClass)
-      loginBtn = await this.page.$$(btnClass)
-    } catch (err) {
-      // Dom not ready, Wait next tick
-      setTimeout(() => {
-        this.searchLoginButton()
-      }, config.tickInterval)
-      return
-    }
-
-    const isWaiting = !!(spinner.length && loginBtn.length)
-
-    if (isWaiting) {
+    if (spinner.length) {
       // Auto load mode, just wait
+      this.tick(STEP_LOGIN)
 
+    } else if (loginBtn.length) {
+      // wait for page loading
+      logger.log('click on login button')
+      await this.page.click(CLS_BTN_LOGIN, {
+        delay: Math.floor(Math.random() * 50)
+      })
+
+      this.nextStep(STEP_FILL_FORM)
+    } else {
       // Check if auto login success
-      const logined = await this.page.$$('.auto login success mark!')
+      const logined = await this.page.$$(CLS_AVATAR)
 
       if (logined.length) {
         // auto login success
-        this._state = TaskState.Completed
-        this._resolve(this.state)
+        this.success(TaskState.Completed)
       } else {
-        console.log('waiting auto load...')
-        // continue wait
-        setTimeout(() => {
-          this.searchLoginButton()
-        }, config.tickInterval)
+        this.tick(STEP_LOGIN)
       }
-
-    } else {
-      // request password
-      console.log('click on login button')
-      await this.page.click(btnClass, {
-        delay: Math.floor(Math.random() * 50)
-      })
-      // wait for page loading
-      sleep(3)
-      this.fillLoginForm()
     }
   }
 
-  private _searchCount = 0
-
   // Step 2: fill form
-  private async fillLoginForm() {
-    const btnLoginCls = '.button-container button'
-    console.log('find form: ')
+  private async stepFillForm() {
+    const btnLoginCls = CLS_BTN_SUBMIT
     // Get last opened window
     const pages = await this.browser.pages()
     let loginPage: Page = null
-
-    this._searchCount ++
-
-    for(let i = 0; i < pages.length; i ++) {
+    for (let i = 0; i < pages.length; i++) {
       const page = pages[i]
       const btnLogin = await page.$$(btnLoginCls)
-      await page.evaluate(
-        `document.title = '🟢 S${this._searchCount } ${btnLogin.length} ...'`
-      );
       if (btnLogin.length) {
         loginPage = page
         break;
@@ -100,26 +100,27 @@ export class Login extends BaseTask {
     }
 
     if (!loginPage) {
-      setTimeout(() => {
-        this.fillLoginForm()
-      }, config.tickInterval)
+      this.tick(STEP_FILL_FORM)
       return
     }
 
     let errorCheckTimer = 0
     const checkLoginError = async () => {
-      const errContainerCls = '.button-container .error-container-login'
+      if (loginPage.isClosed()) {
+        return
+      }
+
+      const errContainerCls = CLS_ERROR_CONTAINER
       const errorMsg = await loginPage.$$eval(errContainerCls + ' ul li', (li) => {
         return [...li].map(item => item.textContent)
       })
       if (errorMsg && errorMsg.length) {
-        console.log('error found!', errorMsg)
-        this.error( errorMsg.join('\n') )
+        logger.log('Login error:', errorMsg)
+        this.error(errorMsg.join('\n'))
       } else {
-        console.log('check login error...')
         const elapse = this.phaseElapseTime
-        if (elapse > config.taskPhaseOvertime) {
-          this.error('Task overtime! Task phase: check-login-error.')
+        if (elapse > config.taskPhaseTimeout) {
+          this.error('Task overtime!')
           return
         }
         errorCheckTimer = setTimeout(() => {
@@ -130,7 +131,7 @@ export class Login extends BaseTask {
 
     loginPage.on('close', () => {
       clearTimeout(errorCheckTimer)
-      this.confirmLoginState()
+      this.nextStep(STEP_CONFIRM)
     });
 
     const iptUsernameCls = '.button-container input[name="userName"]'
@@ -138,12 +139,11 @@ export class Login extends BaseTask {
 
 
     sleep(2)
-    console.log('fill username: ', this.loginInfo.username)
+    logger.log('fill form ...')
     await loginPage.type(iptUsernameCls, this.loginInfo.username, {
       delay: 15,
     });
     sleep(1)
-    console.log('fill username: ', this.loginInfo.password)
     await loginPage.type(iptPasswordCls, this.loginInfo.password, {
       delay: 15,
     });
@@ -154,14 +154,28 @@ export class Login extends BaseTask {
     sleep(2)
 
 
-    this.updatePhase('check-login-error')
+    this.updatePhase('wait-login-verfiy')
     checkLoginError()
   }
 
   // Step 3: confirm login state
   //
-  private confirmLoginState() {
-    console.log('confirm login state!')
+  private async stepConfirm() {
+    const loginBtn = await this.page.$$(CLS_BTN_LOGIN)
+    const spinner = await this.page.$$(CLS_SPINNER)
+    const isWaiting = !!(spinner.length && loginBtn.length)
+
+    if (isWaiting) {
+      if (this.phaseElapseTime > config.taskPhaseTimeout) {
+        this.error('Login timeout.')
+      } else {
+        this.tick(STEP_CONFIRM)
+      }
+
+    } else {
+      // TODO: 需要邮件授权码的情况!
+      this.success(TaskState.Completed, 'login success')
+    }
   }
 }
 

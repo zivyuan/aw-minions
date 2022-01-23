@@ -1,5 +1,7 @@
 import { Page } from "puppeteer"
 import { Browser } from "puppeteer"
+import config from "./config"
+import Logger from "./Logger"
 
 export interface ITask {
   readonly name: string
@@ -22,8 +24,15 @@ export enum TaskState {
   Error
 }
 
+type StepHandle = () => void
+
+export interface TaskStep {
+  [step: string]: StepHandle
+}
+
+const logger = new Logger()
 export default class BaseTask implements ITask {
-  private _name = 'base task'
+  private _name = 'Task'
 
   protected _message = ''
   protected _state: TaskState = TaskState.Idle
@@ -38,10 +47,14 @@ export default class BaseTask implements ITask {
   protected page: Page
   // 子步骤终止
   protected _terminateHandle: () => void
+  private _steps: TaskStep = {}
+  private _entrance: string
 
   constructor(name: string) {
     this._name = name
     this._phaseTimeMark = new Date().getTime()
+
+    logger.setScope(name)
   }
 
   get name(): string {
@@ -65,9 +78,39 @@ export default class BaseTask implements ITask {
     return current - this._phaseTimeMark
   }
 
+  protected get entrance(): string {
+    return this._entrance
+  }
 
-  protected nextStep() {
-    throw new Error('BaseTask.nextStep must be override!')
+  protected registerStep(name: string, handle: StepHandle, first = false) {
+    this._steps[name] = handle
+    if (first === true) {
+      this._entrance = name
+    }
+  }
+
+  protected nextStep(name: string) {
+    const step = this._steps[name]
+    logger.log(`Step ${name}`)
+    this.updatePhase('step-' + name)
+    step.call(this)
+  }
+
+  /**
+   * Call step funciton after a delay
+   * @param name Step name
+   */
+  protected tick(name: string) {
+    const step = this._steps[name]
+    const elapse = this.phaseElapseTime
+
+    if (elapse > config.taskPhaseTimeout) {
+      this.error('Task timeout')
+    } else {
+      setTimeout(() => {
+        step.call(this)
+      }, config.tickInterval)
+    }
   }
 
   protected updatePhase(phase: string) {
@@ -75,6 +118,7 @@ export default class BaseTask implements ITask {
       return
     }
 
+    logger.log(`update phase: ${phase}`)
     this._phaseTimeMark = new Date().getTime()
     this._phase = phase
   }
@@ -100,7 +144,7 @@ export default class BaseTask implements ITask {
       this._resolve = resolve
       this._reject = reject
 
-      this.nextStep()
+      this.nextStep(this.entrance)
     })
   }
 

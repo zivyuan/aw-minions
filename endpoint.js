@@ -8,6 +8,10 @@ const fs = require('fs');
     deviceScaleFactor: 2,
     ignoreDefaultArgs: ['--enable-automation'],
     args: ['--window-size=800,680', '--unhandled-rejections=strict'],
+    viewport: {
+      width: 960,
+      height: 600,
+    }
     // devtools: true,
   });
 
