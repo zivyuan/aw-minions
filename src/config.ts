@@ -1,5 +1,18 @@
+const winWid = 1280
+const winHei = 840
+
 export default {
   //
   tickInterval: 200,
-  taskPhaseTimeout: 1.5 * 60 * 1000
+  taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
+  browserOption: {
+    headless: false,
+    deviceScaleFactor: 2,
+    ignoreDefaultArgs: ["--enable-automation"],
+    defaultViewport: null,
+    args: [
+      `--window-size=${winWid},${winHei}`,
+      "--unhandled-rejections=strict",
+    ],
+  }
 }

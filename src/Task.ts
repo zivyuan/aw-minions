@@ -2,6 +2,7 @@ import { Page } from "puppeteer"
 import { Browser } from "puppeteer"
 import config from "./config"
 import Logger from "./Logger"
+import {sleep} from 'sleep'
 
 export interface ITask {
   readonly name: string
@@ -10,9 +11,16 @@ export interface ITask {
   readonly phase: string
   readonly phaseElapseTime: number
 
-  start(browser: Browser, page: Page): Promise<TaskState>
+  start(browser: Browser, page: Page, delay?: number): Promise<TaskState>
 
   stop(): void
+
+  /**
+   *
+   * @param browser Chromium browser instance
+   * @param page
+   */
+  trigger(browser: Browser, page: Page): boolean
 }
 
 export enum TaskState {
@@ -136,9 +144,13 @@ export default class BaseTask implements ITask {
     this._resolve(this.state)
   }
 
-  start(browser: Browser, page: Page): Promise<TaskState> {
+  start(browser: Browser, page: Page, delay = 0): Promise<TaskState> {
     this.browser = browser
     this.page = page
+
+    if (delay) {
+      sleep(delay)
+    }
 
     return new Promise((resolve, reject) => {
       this._resolve = resolve

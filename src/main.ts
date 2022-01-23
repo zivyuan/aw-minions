@@ -4,12 +4,12 @@ import { hideBin } from 'yargs/helpers'
 import puppeteer from "puppeteer"
 import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions, Browser, Page } from "puppeteer"
 import { sleep } from 'sleep'
-// import TaskManager from "./TaskManager"
-// import * as tasks from './tasks/'
 import { Login } from './tasks/'
 import { TaskState } from './Task'
 import Logger from './Logger'
 import Mining from './tasks/mining/Mining'
+import config from './config'
+import { random } from './utils/utils'
 // import dingding from './Notify'
 
 interface IBotArguments {
@@ -55,13 +55,7 @@ interface IBotArguments {
 
   const createBrowser = async () => {
     const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
-      headless: false,
-      ignoreDefaultArgs: ["--enable-automation"],
-      args: [
-        "--window-size=800,680",
-        "--unhandled-rejections=strict",
-      ],
-      browserWSEndpoint: ''
+      ...config.browserOption
     }
     let browser = null;
     if (argv.endpoint) {
@@ -80,7 +74,9 @@ interface IBotArguments {
     // remove all old tabs
     const pages = await browser.pages();
     const total = pages.length;
-    for (let i = 0; i < total; i++) {
+    // Browser will be closed after last page was closed
+    // Keep at least one page
+    for (let i = 1; i < total; i++) {
       if (!pages[i].isClosed()) {
         await pages[i].close();
       }
@@ -104,7 +100,7 @@ interface IBotArguments {
     mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
 
     // start task after all resource loaded
-    mainPage.once("load", async () => {
+    mainPage.once("domcontentloaded", async () => {
       sleep(1);
 
       // dingding.markdown(`${MINER_NAME} 启动成功`, `${MINER_NAME} 启动成功`)
@@ -117,7 +113,7 @@ interface IBotArguments {
         username: argv.username[0],
         password: argv.password[0],
       })
-      login.start(browser, mainPage)
+      login.start(browser, mainPage, 12)
         .then((task: TaskState) => {
           logger.log('Login task complete', TaskState[task], login.message)
           automine()
@@ -147,7 +143,7 @@ interface IBotArguments {
       })
       .finally(() => {
         logger.log('Mine complete, prepare next mining...')
-        setTimeout(automine, 1.5 * 60 * 1000)
+        setTimeout(automine, (random(7) + 3) * 60 * 1000)
       })
   }
 
