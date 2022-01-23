@@ -96,8 +96,8 @@ interface IBotArguments {
   const loadGame = async () => {
     browser = await createBrowser();
     mainPage = await browser.newPage();
-    // Open game url
-    mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
+    mainPage.setDefaultTimeout(0);
+    mainPage.setDefaultNavigationTimeout(0);
 
     // start task after all resource loaded
     mainPage.once("domcontentloaded", async () => {
@@ -131,6 +131,9 @@ interface IBotArguments {
           // }
         })
     });
+
+    // Open game url
+    await mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
   };
 
   const automine = () => {
