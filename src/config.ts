@@ -7,6 +7,7 @@ export default {
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
   browserOption: {
     headless: false,
+    timeout: 0,
     deviceScaleFactor: 2,
     ignoreDefaultArgs: ["--enable-automation"],
     defaultViewport: null,
