@@ -2,14 +2,12 @@ import fs from 'fs'
 import yargs from "yargs"
 import { hideBin } from 'yargs/helpers'
 import puppeteer from "puppeteer"
-import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions, Browser, Page } from "puppeteer"
+import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "puppeteer"
 import { sleep } from 'sleep'
-import { Login } from './tasks/'
-import { TaskState } from './Task'
 import Logger from './Logger'
-import Mining from './tasks/mining/Mining'
 import config from './config'
-import { random } from './utils/utils'
+import AWLogin from './tasks/AWLogin'
+import Authorize from './tasks/Authorize'
 // import dingding from './Notify'
 
 interface IBotArguments {
@@ -19,6 +17,41 @@ interface IBotArguments {
   endpoint: string
   accounts: string
 }
+
+const createBrowser = async (argv: IBotArguments) => {
+  const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
+    ...config.browserOption
+  }
+  let browser = null;
+  if (argv.endpoint) {
+    if (/^ws:\/\//.test(argv.endpoint)) {
+      option.browserWSEndpoint = argv.endpoint
+    } else {
+      const ep = fs.readFileSync('.endpoint').toString().trim()
+      option.browserWSEndpoint = ep
+    }
+    // option.devtools = true
+    browser = await puppeteer.connect(option);
+  } else {
+    browser = await puppeteer.launch(option);
+  }
+
+  // remove all old tabs
+  const pages = await browser.pages();
+  const total = pages.length;
+  // Browser will be closed after last page was closed
+  // Keep at least one page
+  for (let i = 1; i < total; i++) {
+    if (!pages[i].isClosed()) {
+      await pages[i].close();
+    }
+  }
+
+  sleep(1)
+
+  return browser;
+};
+
 /**
  * Main proccess
  */
@@ -53,104 +86,41 @@ interface IBotArguments {
     .demandOption(["username", "password"])
     .help("help").argv;
 
-  const createBrowser = async () => {
-    const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
-      ...config.browserOption
-    }
-    let browser = null;
-    if (argv.endpoint) {
-      if (/^ws:\/\//.test(argv.endpoint)) {
-        option.browserWSEndpoint = argv.endpoint
-      } else {
-        const ep = fs.readFileSync('.endpoint').toString().trim()
-        option.browserWSEndpoint = ep
-      }
-      // option.devtools = true
-      browser = await puppeteer.connect(option);
-    } else {
-      browser = await puppeteer.launch(option);
-    }
 
-    // remove all old tabs
-    const pages = await browser.pages();
-    const total = pages.length;
-    // Browser will be closed after last page was closed
-    // Keep at least one page
-    for (let i = 1; i < total; i++) {
-      if (!pages[i].isClosed()) {
-        await pages[i].close();
-      }
-    }
 
-    sleep(1)
-
-    return browser;
+  const startMiner = async () => {
+    logger.log('Minion start working...')
   };
 
 
-  let browser: Browser
-  let mainPage: Page
-  // const taskManager = new TaskManager()
-  // taskManager.registerTask(tasks)
+  // Initialize browser
+  const browser = await createBrowser(argv);
+  const mainPage = await browser.newPage();
+  mainPage.setDefaultTimeout(0);
+  mainPage.setDefaultNavigationTimeout(0);
 
-  const loadGame = async () => {
-    browser = await createBrowser();
-    mainPage = await browser.newPage();
-    mainPage.setDefaultTimeout(0);
-    mainPage.setDefaultNavigationTimeout(0);
+  const auth = new Authorize(argv.username[0], argv.password[0])
+  auth.start(browser, mainPage)
+    .then(async (rst) => {
+      logger.log('auth complete success', rst)
 
-    // start task after all resource loaded
-    mainPage.once("domcontentloaded", async () => {
-      sleep(1);
+      await mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
 
-      // dingding.markdown(`${MINER_NAME} 启动成功`, `${MINER_NAME} 启动成功`)
-
-      // Start main loop after game page loadeds
-      logger.log('miner on duty')
-      // const defTask = taskManager.defaultTask
-      // taskManager.start(defTask, browser, mainPage)
-      const login = new Login({
-        username: argv.username[0],
-        password: argv.password[0],
-      })
-      login.start(browser, mainPage, 12)
-        .then((task: TaskState) => {
-          logger.log('Login task complete', TaskState[task], login.message)
-          automine()
+      const login = new AWLogin()
+      login.start(browser, mainPage)
+        .then(() => {
+          startMiner()
         })
-        .catch(async (err) => {
-          // const CLS_AVATAR = '.css-1i7t220 .chakra-avatar'
-          // const avatar = await mainPage.$$(CLS_AVATAR)
-          // if (avatar.length === 0) {
-          //   //
-            logger.log('Login error: ', err)
-          // } else {
-          //   // Auto login complete. run other task
-          //   const mining = new Mining()
-          //   mining.start(browser, mainPage)
-          // }
+        .catch(err => {
+          logger.log('AW game login faile.', err)
         })
-    });
 
-    // Open game url
-    await mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
-  };
 
-  const automine = () => {
-    logger.log('Start mining...')
-    const mining = new Mining()
-    mining.start(browser, mainPage)
-      .catch(err => {
-        logger.log(err + ', prepare next mining...')
-        // setTimeout(automine, 1.5 * 60 * 1000)
-      })
-      .finally(() => {
-        logger.log('Mine complete, prepare next mining...')
-        setTimeout(automine, (random(7) + 3) * 60 * 1000)
-      })
-  }
+    })
+    .catch(err => {
+      logger.log('auth error: ', err)
+    })
 
-  await loadGame();
 })();
 
 

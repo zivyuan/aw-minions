@@ -113,7 +113,7 @@ export default class BaseTask implements ITask {
     const elapse = this.phaseElapseTime
 
     if (elapse > config.taskPhaseTimeout) {
-      this.error('Task timeout')
+      this.completeWithError('Task timeout')
     } else {
       setTimeout(() => {
         step.call(this)
@@ -132,13 +132,13 @@ export default class BaseTask implements ITask {
   }
 
 
-  protected error(message) {
+  protected completeWithError(message) {
     this._state = TaskState.Error
     this._message = message
     this._reject(message)
   }
 
-  protected success(state: TaskState, message?: string) {
+  protected complete(state: TaskState, message?: string) {
     this._state = state
     this._message = message || ''
     this._resolve(this.state)
