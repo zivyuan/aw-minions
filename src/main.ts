@@ -8,6 +8,7 @@ import Logger from './Logger'
 import config from './config'
 import AWLogin from './tasks/AWLogin'
 import Authorize from './tasks/Authorize'
+import Mining from './tasks/Mining'
 // import dingding from './Notify'
 
 interface IBotArguments {
@@ -87,17 +88,30 @@ const createBrowser = async (argv: IBotArguments) => {
     .help("help").argv;
 
 
-
-  const startMiner = async () => {
-    logger.log('Minion start working...')
-  };
-
-
   // Initialize browser
   const browser = await createBrowser(argv);
   const mainPage = await browser.newPage();
   mainPage.setDefaultTimeout(0);
   mainPage.setDefaultNavigationTimeout(0);
+
+
+  const startMiner = async () => {
+    logger.log('Minion start working...')
+    const miner = new Mining()
+    miner.start(browser, mainPage)
+      .then(() => {
+        logger.log('task complete')
+      })
+      .catch((err) => {
+        logger.log('task error', err)
+      })
+      .finally(() => {
+        setTimeout(() => {
+          startMiner()
+        }, 5 * 60 * 1000)
+      })
+  };
+
 
   const auth = new Authorize(argv.username[0], argv.password[0])
   auth.start(browser, mainPage)
@@ -114,7 +128,6 @@ const createBrowser = async (argv: IBotArguments) => {
         .catch(err => {
           logger.log('AW game login faile.', err)
         })
-
 
     })
     .catch(err => {

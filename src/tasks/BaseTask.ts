@@ -1,7 +1,7 @@
 import { Page } from "puppeteer"
 import { Browser } from "puppeteer"
-import config from "./config"
-import Logger from "./Logger"
+import config from "../config"
+import Logger from "../Logger"
 import {sleep} from 'sleep'
 
 export interface ITask {
@@ -20,7 +20,7 @@ export interface ITask {
    * @param browser Chromium browser instance
    * @param page
    */
-  trigger(browser: Browser, page: Page): boolean
+  // trigger(browser: Browser, page: Page): boolean
 }
 
 export enum TaskState {
