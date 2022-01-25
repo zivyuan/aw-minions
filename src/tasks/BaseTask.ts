@@ -177,7 +177,7 @@ export default class BaseTask implements ITask {
    * @param interval
    * @returns
    */
-  innspect<T>(handle: InspectorHandle, interval: 200): Promise<T> {
+  inspect<T>(handle: InspectorHandle, interval: 200): Promise<T> {
     return new Promise((resolve, reject) => {
       const loop = async () => {
         let rst
