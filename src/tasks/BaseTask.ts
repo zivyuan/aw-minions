@@ -38,6 +38,10 @@ export interface TaskStep {
   [step: string]: StepHandle
 }
 
+export interface InspectorHandle {
+  (browser: Browser, page: Page): boolean
+}
+
 const logger = new Logger()
 export default class BaseTask implements ITask {
   private _name = 'Task'
@@ -165,6 +169,36 @@ export default class BaseTask implements ITask {
       this._terminateHandle()
     }
     this._reject(new Error('User terminated.'))
+  }
+
+  /**
+   *
+   * @param handle An inspect function, accept a browser and a page as parameter
+   * @param interval
+   * @returns
+   */
+  innspect<T>(handle: InspectorHandle, interval: 200): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const loop = async () => {
+        let rst
+        try {
+          rst = await handle(this.browser, this.page)
+        } catch (err) {
+          reject(err)
+        }
+
+        if (typeof rst !== 'undefined') {
+          resolve(rst)
+          return
+        }
+
+        setTimeout(() => {
+          loop()
+        }, interval)
+      }
+
+      loop()
+    })
   }
 
 }

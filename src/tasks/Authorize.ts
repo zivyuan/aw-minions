@@ -25,8 +25,8 @@ export class Authorize extends BaseTask {
   constructor(username: string, password: string) {
     super('Task Authorize')
 
-    this.username = username.trim()
-    this.password = password.trim()
+    this.username = String(username).trim()
+    this.password = String(password).trim()
 
     this.registerStep(STEP_RESTORE_COOKIE, this.stepRestoreCookie, true)
     this.registerStep(STEP_LOGIN, this.stepLogin)

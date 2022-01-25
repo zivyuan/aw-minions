@@ -1,14 +1,15 @@
 import fs from 'fs'
 import yargs from "yargs"
 import { hideBin } from 'yargs/helpers'
-import puppeteer from "puppeteer"
+import puppeteer, { Browser } from "puppeteer"
 import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "puppeteer"
-import { sleep } from 'sleep'
 import Logger from './Logger'
 import config from './config'
 import AWLogin from './tasks/AWLogin'
 import Authorize from './tasks/Authorize'
 import Mining from './tasks/Mining'
+import SwitchOmega from './switchyomega'
+import { sleep } from 'sleep'
 // import dingding from './Notify'
 
 interface IBotArguments {
@@ -17,40 +18,71 @@ interface IBotArguments {
   platform: string
   endpoint: string
   accounts: string
+  proxy: boolean
 }
 
-const createBrowser = async (argv: IBotArguments) => {
-  const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
-    ...config.browserOption
-  }
-  let browser = null;
-  if (argv.endpoint) {
-    if (/^ws:\/\//.test(argv.endpoint)) {
-      option.browserWSEndpoint = argv.endpoint
+const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _create = async (resolve, _reject) => {
+    const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
+      ...config.browserOption
+    }
+    let browser = null;
+    if (argv.endpoint) {
+      if (/^ws:\/\//.test(argv.endpoint)) {
+        option.browserWSEndpoint = argv.endpoint
+      } else {
+        const ep = fs.readFileSync('.endpoint').toString().trim()
+        option.browserWSEndpoint = ep
+      }
+      // option.devtools = true
+      browser = await puppeteer.connect(option);
     } else {
-      const ep = fs.readFileSync('.endpoint').toString().trim()
-      option.browserWSEndpoint = ep
+      if (argv.proxy) {
+        option.args.push('--disable-extensions-except=./chrome/Extensions/padekgcemlokbadohgkifijomclgjgif/2.5.21_0')
+      }
+      browser = await puppeteer.launch(option);
+
+      if (argv.proxy) {
+        let proxyInitialed = false
+        let pageFound = false
+        browser.on('targetcreated', async (target) => {
+          if (pageFound && proxyInitialed) {
+            return
+          }
+
+          const _browser = await target.browser()
+          const pages = await _browser.pages()
+          let page
+          const reg = /switchyomega/i
+          while( (page = pages.pop()) ) {
+            const title = await page.title()
+            if (reg.test(title)) {
+              pageFound = true
+              break;
+            }
+          }
+
+          if (!pageFound) {
+            return
+          }
+
+          await SwitchOmega.initial(page)
+
+          proxyInitialed = true
+
+          resolve(browser)
+        })
+        // Wait for proxy extense initial
+        return
+      }
     }
-    // option.devtools = true
-    browser = await puppeteer.connect(option);
-  } else {
-    browser = await puppeteer.launch(option);
+    resolve(browser)
   }
 
-  // remove all old tabs
-  const pages = await browser.pages();
-  const total = pages.length;
-  // Browser will be closed after last page was closed
-  // Keep at least one page
-  for (let i = 1; i < total; i++) {
-    if (!pages[i].isClosed()) {
-      await pages[i].close();
-    }
-  }
-
-  sleep(1)
-
-  return browser;
+  return new Promise((resolve, reject) => {
+    _create(resolve, reject)
+  })
 };
 
 /**
@@ -84,12 +116,23 @@ const createBrowser = async (argv: IBotArguments) => {
     .option("accounts", {
       describe: "Account pool json file",
     })
+    .option("proxy", {
+      describe: "Use SwitchOmega proxy",
+      boolean: true
+    })
     .demandOption(["username", "password"])
     .help("help").argv;
 
 
   // Initialize browser
   const browser = await createBrowser(argv);
+  // Remove unneccessery tabs
+  const pages = await browser.pages();
+  while(pages.length > 1) {
+    const page = pages.pop()
+    await page.close()
+    sleep(1)
+  }
   const mainPage = await browser.newPage();
   mainPage.setDefaultTimeout(0);
   mainPage.setDefaultNavigationTimeout(0);
