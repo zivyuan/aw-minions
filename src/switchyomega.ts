@@ -143,22 +143,25 @@ export default {
       await page.$eval('.switch-rules tr.switch-rule-row:last-child input', selectAll)
       await page.type('.switch-rules tr.switch-rule-row:last-child input', rule)
     }
-    const rules = [
-      '*.wax.io',
-      '*.gstatic.com',
-      '*.google.com',
-      '*.googleapis.com',
-      '*.cloudflareinsights.com',
-      "*.googletagmanager.com"
-    ]
+    const rules = [ '*.wax.io', ]
     let rule
     while ((rule = rules.shift())) {
       await addRule(rule)
     }
     sleep(1)
+
+    // Add proxy rule list
+    logger.log('add rule list...')
+    await page.click('button[ng-click="attachNew()"]')
+    await page.waitForSelector('div[model="attached.sourceUrl"] input')
+    await page.type('div[model="attached.sourceUrl"] input', 'https://gitlab.com/gfwlist/gfwlist/raw/master/gfwlist.txt')
+
     // Save proxy
     await page.click('nav li .btn-success')
     sleep(1)
+    // Download rule list
+    await page.click('button[ng-click="updateProfile(attached.name)"]')
+    sleep(5)
 
     // All set
     logger.log('Proxy config all down!')
