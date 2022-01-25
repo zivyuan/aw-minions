@@ -118,7 +118,7 @@ export default {
     // Input port
     const iptPort = '.fixed-servers tr.ng-scope:nth-child(1) input.ng-valid-min'
     await page.$eval(iptPort, selectAll)
-    await page.type(iptPort, '9999')
+    await page.type(iptPort, '7890')
 
     sleep(1)
     // Save proxy
