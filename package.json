@@ -37,7 +37,8 @@
   "author": "Jakub Synowiec <jsynowiec@users.noreply.github.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "dingtalk-robot-sender": "^1.2.0",
+    "axios": "^0.25.0",
+    "dotenv": "^14.3.0",
     "moment": "^2.29.1",
     "monent": "^0.0.2-security",
     "numeral": "^2.0.6",

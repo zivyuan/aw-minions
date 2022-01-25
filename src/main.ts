@@ -10,7 +10,7 @@ import Authorize from './tasks/Authorize'
 import Mining from './tasks/Mining'
 import SwitchOmega from './switchyomega'
 import { sleep } from 'sleep'
-// import dingding from './Notify'
+import DingBot from './DingBot'
 
 interface IBotArguments {
   username: string[]
@@ -23,6 +23,7 @@ interface IBotArguments {
 
 
 const logger = new Logger('Main')
+const dingding = DingBot.getInstance(config.dingding)
 
 const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -127,6 +128,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     .help("help").argv;
 
 
+  dingding.text('AW Minions\'s Owner start feeding...')
   // Initialize browser
   const browser = await createBrowser(argv);
   // Remove unneccessery tabs
@@ -142,7 +144,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
 
 
   const startMiner = async () => {
-    logger.log('Minion start working...')
+    logger.log('Minions start working...')
+    dingding.text('Minions are start working...')
     const miner = new Mining()
     miner.start(browser, mainPage)
       .then(() => {

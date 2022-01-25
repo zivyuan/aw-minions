@@ -90,18 +90,18 @@ export default {
     }
 
     // Select default mode
-    logger.log('set default mode...')
-    await page.click('nav li:nth-child(2) a')
+    // logger.log('set default mode...')
+    // await page.click('nav li:nth-child(2) a')
 
-    await page.waitForSelector('main .settings-group button.dropdown-toggle')
-    await page.click('main .settings-group button.dropdown-toggle')
+    // await page.waitForSelector('main .settings-group button.dropdown-toggle')
+    // await page.click('main .settings-group button.dropdown-toggle')
 
-    await page.waitForSelector('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
-    await page.click('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
-    sleep(1)
-    // Save
-    await page.click('nav li .btn-success')
-    sleep(2)
+    // await page.waitForSelector('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
+    // await page.click('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
+    // sleep(1)
+    // // Save
+    // await page.click('nav li .btn-success')
+    // sleep(2)
 
     // Config proxy setting
     logger.log('set socket5...')
