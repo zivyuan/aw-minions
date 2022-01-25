@@ -70,6 +70,7 @@ export default {
     const rules = [
       '*.wax.io',
       '*.gstatic.com',
+      '*.google.com',
       '*.googleapis.com',
       '*.cloudflareinsights.com',
       "*.googletagmanager.com"
