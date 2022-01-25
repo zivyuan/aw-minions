@@ -50,7 +50,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
         let proxyInitialed = false
         let pageFound = false
         browser.on('targetcreated', async (target) => {
-          if (pageFound && proxyInitialed) {
+          if (proxyInitialed) {
             return
           }
 
@@ -159,7 +159,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
 
 
   const auth = new Authorize(argv.username[0], argv.password[0])
-  auth.start(browser, mainPage, 5)
+  auth.start(browser, mainPage)
     .then(async (rst) => {
       logger.log('auth complete success', rst)
 

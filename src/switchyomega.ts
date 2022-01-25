@@ -4,17 +4,91 @@ import Logger from "./Logger"
 
 const selectAll = (ipt) => ipt.select()
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const proxyInstallGuide = (page: Page): Promise<any> => {
+  const promiseWrapper = async (resolve) => {
+    const html = `<style>
+    #so-helper {
+        position: fixed;
+        z-index: 9999999;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);
+        top: 0px;
+        left: 0px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+
+    #so-helper strong {
+        font-weight: bold;
+        margin: 0 1em;
+    }
+
+    #so-helper p {
+        color: #FFF;
+    }
+</style>
+<div style="max-width: 400px;">
+    <p>Set SwitchyOmega proxy mode as <strong>[auto switch]</strong></p>
+    <p>&nbsp;</p>
+    <p>Press 👇👇👇👇 after set.</p>
+    <button id="so-confirm">I am ready!</button>
+    <script>
+    </script>
+</div> `
+    // Open proxy switchy omega cause script run twice again
+    // So need to prevent the second injection.
+    const markId = 'so-helper'
+    const script = ` (() => {
+      const helper = document.getElementById('${markId}');
+      if (helper) return
+
+      const div = document.createElement('div');
+      div.id = '${markId}';
+      div.innerHTML = ${JSON.stringify({ html })}.html;
+      document.body.append(div)
+      setTimeout(() => {
+        const btn = document.getElementById('so-confirm')
+        btn.addEventListener('click', () => {
+            document.getElementById('so-helper').remove()
+        })
+      }, 300)
+  })() `;
+    await page.evaluate(script)
+
+    const checkButton = async () => {
+      const btn = await page.$(`#${markId}`)
+      if (!btn) {
+        resolve(page)
+      } else {
+        setTimeout(() => {
+          checkButton()
+        }, 500)
+      }
+    }
+
+    checkButton()
+  }
+
+  return new Promise((resolve) => {
+    promiseWrapper(resolve)
+  })
+}
+
 const logger = new Logger('SwitchyOmega')
 export default {
   initial: async (page: Page) => {
     logger.log('config Proxy SwitchyOmega')
-    // Wait...
-    sleep(2)
+
+    await proxyInstallGuide(page)
+
     // Close intro modal
     const mbtn = await page.$('.modal-dialog .modal-header button')
     if (mbtn) {
       await page.click('.modal-dialog .modal-header button')
-      sleep(1)
     }
 
     // Select default mode
@@ -79,17 +153,13 @@ export default {
       "*.googletagmanager.com"
     ]
     let rule
-    while((rule = rules.shift())) {
+    while ((rule = rules.shift())) {
       await addRule(rule)
     }
     sleep(1)
     // Save proxy
     await page.click('nav li .btn-success')
     sleep(1)
-
-    const delay = 8
-    await page.evaluate(`alert('Please select proxy mode to [auto switch] in the next ${delay} seconds.')`)
-    sleep(delay)
 
     // All set
     logger.log('Proxy config all down!')
