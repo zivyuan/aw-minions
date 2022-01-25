@@ -66,13 +66,14 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
             }
           }
 
-          if (!pageFound) {
+          if (!(pageFound && !proxyInitialed)) {
             return
           }
 
+          proxyInitialed = true
+
           await SwitchOmega.initial(page)
 
-          proxyInitialed = true
 
           resolve(browser)
         })

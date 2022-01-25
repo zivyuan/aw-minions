@@ -43,9 +43,6 @@ const proxyInstallGuide = (page: Page): Promise<any> => {
     // So need to prevent the second injection.
     const markId = 'so-helper'
     const script = ` (() => {
-      const helper = document.getElementById('${markId}');
-      if (helper) return
-
       const div = document.createElement('div');
       div.id = '${markId}';
       div.innerHTML = ${JSON.stringify({ html })}.html;
@@ -89,14 +86,17 @@ export default {
     const mbtn = await page.$('.modal-dialog .modal-header button')
     if (mbtn) {
       await page.click('.modal-dialog .modal-header button')
+      sleep(1)
     }
 
     // Select default mode
     logger.log('set default mode...')
     await page.click('nav li:nth-child(2) a')
-    sleep(1)
+
+    await page.waitForSelector('main .settings-group button.dropdown-toggle')
     await page.click('main .settings-group button.dropdown-toggle')
-    sleep(2)
+
+    await page.waitForSelector('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
     await page.click('main .settings-group button.dropdown-toggle+ul.dropdown-menu li:nth-child(2)')
     sleep(1)
     // Save
@@ -106,8 +106,8 @@ export default {
     // Config proxy setting
     logger.log('set socket5...')
     await page.click('nav li[data-profile-type="FixedProfile"] a')
-    sleep(2)
     // Select protocol
+    await page.waitForSelector('.fixed-servers tr.ng-scope:nth-child(1) select')
     await page.select('.fixed-servers tr.ng-scope:nth-child(1) select', 'string:socks5')
 
     // Input address
@@ -123,7 +123,7 @@ export default {
     sleep(1)
     // Save proxy
     await page.click('nav li .btn-success')
-    sleep(2)
+    sleep(1)
 
     //
     logger.log('set rules...')
@@ -139,10 +139,9 @@ export default {
     sleep(2)
     const addRule = async (rule: string) => {
       await page.click('.switch-rules tr button[ng-click="addRule()"]')
-      sleep(1)
+      sleep(2)
       await page.$eval('.switch-rules tr.switch-rule-row:last-child input', selectAll)
       await page.type('.switch-rules tr.switch-rule-row:last-child input', rule)
-      sleep(1)
     }
     const rules = [
       '*.wax.io',
