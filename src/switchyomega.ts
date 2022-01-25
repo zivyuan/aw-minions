@@ -81,9 +81,12 @@ export default {
     sleep(1)
     // Save proxy
     await page.click('nav li .btn-success')
+    sleep(1)
+
+    await page.evaluate(() => alert(`Please select proxy mode to [auto switch] in the next 30 seconds.`))
+    sleep(35)
 
     // All set
-    sleep(1)
     await page.close()
     sleep(2)
   }
