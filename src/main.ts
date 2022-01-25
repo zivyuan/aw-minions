@@ -21,6 +21,9 @@ interface IBotArguments {
   proxy: boolean
 }
 
+
+const logger = new Logger('Main')
+
 const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _create = async (resolve, _reject) => {
@@ -89,7 +92,6 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
  * Main proccess
  */
 (async () => {
-  const logger = new Logger('main')
   //
   // Initial command line arguments
   //
@@ -133,7 +135,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     await page.close()
     sleep(1)
   }
-  const mainPage = await browser.newPage();
+  let mainPage = await browser.newPage();
   mainPage.setDefaultTimeout(0);
   mainPage.setDefaultNavigationTimeout(0);
 
@@ -157,10 +159,12 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
 
 
   const auth = new Authorize(argv.username[0], argv.password[0])
-  auth.start(browser, mainPage)
+  auth.start(browser, mainPage, 5)
     .then(async (rst) => {
       logger.log('auth complete success', rst)
 
+      const pages = await browser.pages()
+      mainPage = pages[pages.length - 1]
       await mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
 
       const login = new AWLogin()

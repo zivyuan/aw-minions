@@ -1,13 +1,13 @@
 import { Page } from "puppeteer"
 import { sleep } from "sleep"
+import Logger from "./Logger"
 
 const selectAll = (ipt) => ipt.select()
 
+const logger = new Logger('SwitchyOmega')
 export default {
   initial: async (page: Page) => {
-    const title = await page.title()
-    console.log(title)
-
+    logger.log('config Proxy SwitchyOmega')
     // Wait...
     sleep(2)
     // Close intro modal
@@ -18,6 +18,7 @@ export default {
     }
 
     // Select default mode
+    logger.log('set default mode...')
     await page.click('nav li:nth-child(2) a')
     sleep(1)
     await page.click('main .settings-group button.dropdown-toggle')
@@ -29,6 +30,7 @@ export default {
     sleep(2)
 
     // Config proxy setting
+    logger.log('set socket5...')
     await page.click('nav li[data-profile-type="FixedProfile"] a')
     sleep(2)
     // Select protocol
@@ -47,9 +49,10 @@ export default {
     sleep(1)
     // Save proxy
     await page.click('nav li .btn-success')
+    sleep(2)
 
     //
-    sleep(2)
+    logger.log('set rules...')
     await page.click('nav li[data-profile-type="SwitchProfile"] a')
     sleep(2)
     // Skip tutorial
@@ -84,11 +87,11 @@ export default {
     await page.click('nav li .btn-success')
     sleep(1)
 
-    await page.evaluate(() => alert(`Please select proxy mode to [auto switch] in the next 30 seconds.`))
-    sleep(35)
+    const delay = 8
+    await page.evaluate(`alert('Please select proxy mode to [auto switch] in the next ${delay} seconds.')`)
+    sleep(delay)
 
     // All set
-    await page.close()
-    sleep(2)
+    logger.log('Proxy config all down!')
   }
 }
