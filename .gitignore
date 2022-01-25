@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+*._*
 npm-debug.log*
 
 # Dependencies
