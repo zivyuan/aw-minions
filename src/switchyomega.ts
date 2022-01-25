@@ -155,6 +155,10 @@ export default {
     await page.click('button[ng-click="attachNew()"]')
     await page.waitForSelector('div[model="attached.sourceUrl"] input')
     await page.type('div[model="attached.sourceUrl"] input', 'https://gitlab.com/gfwlist/gfwlist/raw/master/gfwlist.txt')
+    // Set rule list proxy mode
+    await page.click('div[ng-model="attached.matchProfileName"] button')
+    await page.waitForSelector('div[ng-model="attached.matchProfileName"] button+ul li:nth-child(1) a')
+    await page.click('div[ng-model="attached.matchProfileName"] button+ul li:nth-child(1) a')
 
     // Save proxy
     await page.click('nav li .btn-success')
