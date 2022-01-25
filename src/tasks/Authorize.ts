@@ -3,6 +3,7 @@ import config from "../config"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
 import { restoreCookie, saveCookie } from "../utils/cookie"
+import { disableTimeout } from "../utils/pputils"
 
 
 // const STEP_CHECK_COOKIE_CACHE = 'check_cookie_cache'
@@ -35,10 +36,11 @@ export class Authorize extends BaseTask {
   }
 
   private async stepRestoreCookie() {
-    // const page = await this.browser.newPage()
+    disableTimeout(this.page)
     await this.page.goto(URL_WAX_WALLET_LOGIN)
     await restoreCookie(this.username, URL_WAX_DOMAIN, this.page)
     sleep(2)
+    disableTimeout(this.page)
     await this.page.goto(URL_WAX_WALLET_LOGIN + '?_nc=' + (new Date().getTime()))
 
     const determinNextStep = async () => {
