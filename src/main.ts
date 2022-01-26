@@ -13,6 +13,7 @@ import { sleep } from 'sleep'
 import DingBot from './DingBot'
 import moment from 'moment'
 import { TaskState } from './tasks/BaseTask'
+import { random } from './utils/utils'
 
 interface IBotArguments {
   username: string[]
@@ -152,7 +153,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     miner.start(browser, mainPage)
       .then((rst) => {
         const data = rst.data
-        const delay = data.nextAttemptAt - new Date().getTime()
+        // Add random delay to prevent multi minions works on same time
+        const delay = data.nextAttemptAt - new Date().getTime() + (3 + random(10)) * 1000
         setTimeout(() => {
           startMiner()
         }, delay)

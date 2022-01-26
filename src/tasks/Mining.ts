@@ -151,7 +151,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         .reduce((a, b) => a + b) * 1000
       logger.log('Next mine count down: ', countDown)
       const data: IMiningResult = {
-        nextAttemptAt: new Date().getTime() + seconds + 5000,
+        nextAttemptAt: new Date().getTime() + seconds,
         reward: 0
       }
       this.complete(TaskState.Completed, '', data)
