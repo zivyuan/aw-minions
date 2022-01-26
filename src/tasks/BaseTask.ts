@@ -59,8 +59,6 @@ export default class BaseTask<T> implements ITask<T> {
   protected _state: TaskState = TaskState.Idle
   protected _phase = 'ready'
   protected _phaseTimeMark = 0
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected _result: any
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _resolve: (value: any) => void

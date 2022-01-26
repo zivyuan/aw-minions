@@ -128,11 +128,6 @@ export default class Mining extends BaseTask<IMiningResult> {
       const message = `Resource low, add ${config.mining.lowResourceCoolDown} minute to cooldown`
       const seconds = 30 * 60 * 1000
       logger.log(message)
-      this._result = {
-        message,
-        wait: seconds,
-        next: new Date().getTime() + seconds
-      }
       const data: IMiningResult = {
         nextAttemptAt: new Date().getTime() + seconds,
         reward: 0
@@ -153,10 +148,10 @@ export default class Mining extends BaseTask<IMiningResult> {
       const countDown = await this.page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
       const seconds = countDown.split(':')
         .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
-        .reduce((a, b) => a + b)
+        .reduce((a, b) => a + b) * 1000
       logger.log('Next mine count down: ', countDown)
       const data: IMiningResult = {
-        nextAttemptAt: new Date().getTime() + seconds + 5,
+        nextAttemptAt: new Date().getTime() + seconds + 5000,
         reward: 0
       }
       this.complete(TaskState.Completed, '', data)

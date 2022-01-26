@@ -49,10 +49,19 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
     await page.goto(URL_WAX_WALLET_LOGIN + '?_nc=' + (new Date().getTime()))
 
     const determinNextStep = async () => {
-      const pages = await this.browser.pages()
-      const page = pages[pages.length - 1]
-      const btn_submit =  await page.$('.button-container button')
-      const avatar = await page.$('.profile .avatar')
+      let btn_submit = null
+      let avatar = null
+
+      try {
+        // 在 WAX 自动登录成功后跳转到 dashboard 的过程中容易发生对象丢失的问题
+        const pages = await this.browser.pages()
+        const page = pages[pages.length - 1]
+        btn_submit = await page.$('.button-container button')
+        avatar = await page.$('.profile .avatar')
+      } catch (err) {
+        logger.log('Browser missing.........')
+      }
+
       if (btn_submit) {
         this.nextStep(STEP_LOGIN)
       } else if (avatar) {
@@ -130,7 +139,13 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
 
   private async stepSaveCookie() {
     const searchAvart = async () => {
-      const pages = await this.browser.pages()
+      let pages = []
+      try {
+        pages = await this.browser.pages()
+      } catch (err) {
+        pages = []
+      }
+
       for (let i = pages.length - 1; i > 0; i--) {
         const page = pages[i]
         const avatar = await page.$('.profile .avatar')
