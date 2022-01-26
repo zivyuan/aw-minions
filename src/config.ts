@@ -16,6 +16,10 @@ export default {
       "--unhandled-rejections=strict",
     ],
   },
+  mining: {
+    // Coll down second when resource low
+    lowResourceCoolDown: 30
+  },
   //
   dingding: {
     webhook: 'https://oapi.dingtalk.com/robot/send?access_token=9af84564bfffabbbbf76053b3aa5393901a46e838f3f173c393d1fc6b9f76f2b',

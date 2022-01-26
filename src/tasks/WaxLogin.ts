@@ -6,6 +6,12 @@ import { restoreCookie, saveCookie } from "../utils/cookie"
 import { disableTimeout } from "../utils/pputils"
 
 
+export interface IAuthorizeResult {
+  account: string
+  username: string
+  tlm: number
+}
+
 // const STEP_CHECK_COOKIE_CACHE = 'check_cookie_cache'
 const STEP_RESTORE_COOKIE = 'restore_cookie'
 const STEP_LOGIN = 'login'
@@ -16,9 +22,8 @@ const URL_WAX_DOMAIN = "all-access.wax.io"
 const URL_WAX_WALLET_LOGIN = "https://all-access.wax.io/"
 
 
-
 const logger = new Logger()
-export class Authorize extends BaseTask {
+export class Authorize extends BaseTask<IAuthorizeResult> {
   private username = ''
   private password = ''
 
@@ -36,16 +41,18 @@ export class Authorize extends BaseTask {
   }
 
   private async stepRestoreCookie() {
-    disableTimeout(this.page)
-    await this.page.goto(URL_WAX_WALLET_LOGIN)
-    await restoreCookie(this.username, URL_WAX_DOMAIN, this.page)
-    sleep(2)
-    disableTimeout(this.page)
-    await this.page.goto(URL_WAX_WALLET_LOGIN + '?_nc=' + (new Date().getTime()))
+    const pages = await this.browser.pages()
+    const page = pages[pages.length - 1]
+    disableTimeout(page)
+    await page.goto(URL_WAX_WALLET_LOGIN)
+    await restoreCookie(this.username, URL_WAX_DOMAIN, page)
+    await page.goto(URL_WAX_WALLET_LOGIN + '?_nc=' + (new Date().getTime()))
 
     const determinNextStep = async () => {
-      const btn_submit =  await this.page.$('.button-container button')
-      const avatar = await this.page.$('.profile .avatar')
+      const pages = await this.browser.pages()
+      const page = pages[pages.length - 1]
+      const btn_submit =  await page.$('.button-container button')
+      const avatar = await page.$('.profile .avatar')
       if (btn_submit) {
         this.nextStep(STEP_LOGIN)
       } else if (avatar) {
@@ -56,6 +63,7 @@ export class Authorize extends BaseTask {
         }, 2000)
       }
     }
+
     determinNextStep()
   }
 
@@ -132,7 +140,11 @@ export class Authorize extends BaseTask {
 
           logger.log('authorize pass')
 
-          this.complete(TaskState.Completed)
+          this.complete(TaskState.Completed, '', {
+            username: '',
+            account: '',
+            tlm: 0
+          })
           return;
         }
       }

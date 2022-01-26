@@ -2,8 +2,13 @@ import BaseTask, { TaskState } from "./BaseTask";
 import {sleep} from 'sleep'
 import Logger from "../Logger";
 
+export interface IAWLoginResult {
+  account: string
+  tlm: number
+}
+
 const logger = new Logger()
-export default class AWLogin extends BaseTask {
+export default class AWLogin extends BaseTask<IAWLoginResult> {
   constructor() {
     super('AWLogin')
 

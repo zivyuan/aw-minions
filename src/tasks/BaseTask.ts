@@ -4,14 +4,14 @@ import config from "../config"
 import Logger from "../Logger"
 import {sleep} from 'sleep'
 
-export interface ITask {
+export interface ITask<T> {
   readonly name: string
   readonly state: TaskState
   readonly message: string
   readonly phase: string
   readonly phaseElapseTime: number
 
-  start(browser: Browser, page: Page, delay?: number): Promise<TaskState>
+  start(browser: Browser, page: Page, delay?: number): Promise<ITaskResult<T>>
 
   stop(): void
 
@@ -28,6 +28,7 @@ export enum TaskState {
   Running,
   Completed,
   Canceled,
+  Abort,
   Interrupted,
   Error
 }
@@ -42,14 +43,24 @@ export interface InspectorHandle {
   (browser: Browser, page: Page): boolean
 }
 
+export interface ITaskResult<T> {
+  state: TaskState
+  message: string
+  data: T | null
+}
+
+export type ITaskNoResult = null
+
 const logger = new Logger()
-export default class BaseTask implements ITask {
+export default class BaseTask<T> implements ITask<T> {
   private _name = 'Task'
 
   protected _message = ''
   protected _state: TaskState = TaskState.Idle
   protected _phase = 'ready'
   protected _phaseTimeMark = 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected _result: any
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _resolve: (value: any) => void
@@ -101,7 +112,11 @@ export default class BaseTask implements ITask {
     }
   }
 
-  protected nextStep(name: string) {
+  protected nextStep(name: string, delay?: number) {
+    if (delay) {
+      sleep(delay)
+    }
+
     const step = this._steps[name]
     logger.log(`Step ${name}`)
     this.updatePhase('step-' + name)
@@ -142,13 +157,17 @@ export default class BaseTask implements ITask {
     this._reject(message)
   }
 
-  protected complete(state: TaskState, message?: string) {
+  protected complete(state: TaskState, message?: string, data?: T) {
     this._state = state
     this._message = message || ''
-    this._resolve(this.state)
+    this._resolve({
+      state: this._state,
+      message: this._message,
+      data: data || null
+    })
   }
 
-  start(browser: Browser, page: Page, delay = 0): Promise<TaskState> {
+  start(browser: Browser, page: Page, delay = 0): Promise<ITaskResult<T>> {
     this.browser = browser
     this.page = page
 

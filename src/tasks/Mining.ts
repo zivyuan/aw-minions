@@ -3,6 +3,7 @@ import { random } from "../utils/utils";
 import { sleep } from 'sleep'
 import { Page } from "puppeteer";
 import Logger from "../Logger";
+import config from "../config";
 
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
 const CLS_BTN_CLAIM = '.css-1i7t220 .css-f33lh6 .css-1knsxs2 .css-t8p16t'
@@ -39,7 +40,15 @@ const STEP_CONFIRM = 'comfirm'
 
 const logger = new Logger('Mining Task')
 
-export default class Mining extends BaseTask {
+export interface IMiningResult {
+  nextAttemptAt: number
+  reward: number
+  cpu?: number
+  net?: number
+  ram?: number
+}
+
+export default class Mining extends BaseTask<IMiningResult> {
 
   constructor() {
     super('Mining Task')
@@ -112,9 +121,29 @@ export default class Mining extends BaseTask {
   }
 
   private async stepConfirm() {
-    const btn = await this.page.$$(CLS_BTN_COOLDOWN)
+    const btnMine = await this.page.$(CLS_BTN_MINE)
 
-    if (!btn.length) {
+    if (btnMine) {
+      // 资源不足了, 默认30分钟后再次尝试
+      const message = `Resource low, add ${config.mining.lowResourceCoolDown} minute to cooldown`
+      const seconds = 30 * 60 * 1000
+      logger.log(message)
+      this._result = {
+        message,
+        wait: seconds,
+        next: new Date().getTime() + seconds
+      }
+      const data: IMiningResult = {
+        nextAttemptAt: new Date().getTime() + seconds,
+        reward: 0
+      }
+      this.complete(TaskState.Abort, 'No enough resource to mining.', data)
+      return
+    }
+
+    const btn = await this.page.$(CLS_BTN_COOLDOWN)
+
+    if (!btn) {
       this.tick(STEP_CONFIRM)
       return
     }
@@ -122,8 +151,15 @@ export default class Mining extends BaseTask {
     const txt = await this.page.$$(CLS_TXT_COOLDOWN)
     if (txt.length) {
       const countDown = await this.page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
+      const seconds = countDown.split(':')
+        .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
+        .reduce((a, b) => a + b)
       logger.log('Next mine count down: ', countDown)
-      this.complete(TaskState.Completed)
+      const data: IMiningResult = {
+        nextAttemptAt: new Date().getTime() + seconds + 5,
+        reward: 0
+      }
+      this.complete(TaskState.Completed, '', data)
 
     } else {
       this.tick(STEP_CONFIRM)

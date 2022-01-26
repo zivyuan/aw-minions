@@ -6,11 +6,13 @@ import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "pup
 import Logger from './Logger'
 import config from './config'
 import AWLogin from './tasks/AWLogin'
-import Authorize from './tasks/Authorize'
+import Authorize from './tasks/WaxLogin'
 import Mining from './tasks/Mining'
 import SwitchOmega from './switchyomega'
 import { sleep } from 'sleep'
 import DingBot from './DingBot'
+import moment from 'moment'
+import { TaskState } from './tasks/BaseTask'
 
 interface IBotArguments {
   username: string[]
@@ -148,16 +150,25 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     dingding.text('Minions are start working...')
     const miner = new Mining()
     miner.start(browser, mainPage)
-      .then(() => {
-        logger.log('task complete')
+      .then((rst) => {
+        const data = rst.data
+        const delay = data.nextAttemptAt - new Date().getTime()
+        setTimeout(() => {
+          startMiner()
+        }, delay)
+        logger.log('Next mine attempt will start at: ', moment(data.nextAttemptAt).format('HH:mm'))
+        if (rst.state === TaskState.Abort) {
+          dingding.text(`Minions resouce empty.`)
+        }
       })
       .catch((err) => {
-        logger.log('task error', err)
-      })
-      .finally(() => {
         setTimeout(() => {
           startMiner()
         }, 5 * 60 * 1000)
+        const nextAttemptAt = new Date().getTime() + 5 * 60 * 1000
+        logger.log('Error occur: ', err)
+        logger.log('Next mine attempt will start at: ', moment(nextAttemptAt).format('HH:mm'))
+        dingding.text('Error occur: ', err)
       })
   };
 
