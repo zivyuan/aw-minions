@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Page } from "puppeteer"
 import config from "../config"
 import Logger from "../Logger"
@@ -42,7 +43,7 @@ export enum TaskType {
 export type ITaskNoResult = null
 
 export interface ITask<T> {
-  readonly uuid: number
+  readonly no: number
   readonly name: string
   readonly state: TaskState
   readonly message: string
@@ -66,7 +67,7 @@ export type TaskClass = typeof BaseTask & { meta: { [prop: string]: any } }
 let __uuid = 0
 const logger = new Logger()
 export default class BaseTask<T> implements ITask<T> {
-  private __uuid: number
+  private __no: number
   private _name = 'Task'
   private _type: TaskType = TaskType.Single
 
@@ -88,13 +89,13 @@ export default class BaseTask<T> implements ITask<T> {
   constructor(name: string) {
     this._name = name
     this._phaseTimeMark = new Date().getTime()
-    this.__uuid = __uuid++
+    this.__no = __uuid++
 
     logger.setScope(name)
   }
 
-  get uuid(): number {
-    return this.__uuid
+  get no(): number {
+    return this.__no
   }
 
   get type(): TaskType {
@@ -170,7 +171,7 @@ export default class BaseTask<T> implements ITask<T> {
    * @returns Test result
    */
   protected async waitUtil<T>(condition: () => any): Promise<T> {
-    return new Promise((resolve, _reject) => {
+    return new Promise((resolve) => {
       const loop = async () => {
         try {
           const rst = await condition()

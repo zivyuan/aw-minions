@@ -6,7 +6,7 @@ import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "pup
 import Logger from './Logger'
 import config from './config'
 import WaxLogin from './tasks/WaxLogin'
-import DingBot from './DingBot'
+// import DingBot from './DingBot'
 import Minion from './Minion'
 import Mining from './tasks/Mining'
 import AWLogin from './tasks/AWLogin'
@@ -23,7 +23,7 @@ interface IBotArguments {
 
 
 const logger = new Logger('Main')
-const dingding = DingBot.getInstance(config.dingding)
+// const dingding = DingBot.getInstance(config.dingding)
 
 const getProxy = (proxy): string => {
   return proxy === true
@@ -111,7 +111,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   const browser = await createBrowser(argv);
   //
   if (argv.endpoint) {
-    let pages = await browser.pages()
+    const pages = await browser.pages()
     while(pages.length > 1) {
       const page = pages.shift()
       await page.close()

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Browser, Page } from "puppeteer";
 import Logger from "./Logger";
@@ -49,9 +50,9 @@ const logger = new Logger()
 export default class Minion implements IMiningDataProvider {
   private browser: Browser
   private _taskPool: TaskObject[] = []
-  private _pollingIndex: number = 0
+  private _pollingIndex = 0
   private _state: MiningState = MiningState.Idle
-  private _pollingId: number = 0
+  private _pollingId = 0
   private _currentTask: ITask<any> = null
   private _data: { [prop: string]: any } = {}
   private _userAgent: string
@@ -109,7 +110,7 @@ export default class Minion implements IMiningDataProvider {
     const currentTask = this._taskPool[this._pollingIndex]
     if (currentTask.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
       const task: ITask<any> = new (currentTask.Class)()
-      logger.log('Create task: ', task.name, task.uuid)
+      logger.log('Create task: ', task.name, task.no)
       task.setProvider(this)
       task.prepare()
       task.start()
@@ -170,7 +171,7 @@ export default class Minion implements IMiningDataProvider {
    * @returns Promise<Page>
    */
   async getPage(query: string | RegExp | PageQueryFunc, newUrl?: string | boolean , queryUrl?: boolean): Promise<Page> {
-    return new Promise((resolve, _reject) => {
+    return new Promise((resolve) => {
       const searchPage = async () => {
         const pages = await this.browser.pages()
         let page: Page
@@ -179,7 +180,7 @@ export default class Minion implements IMiningDataProvider {
           const str = queryUrl === true
             ? await page.evaluate(`document.location.href`)
             : await page.title()
-          return new Promise((resolve, _reject) => {
+          return new Promise((resolve) => {
             resolve(str)
           })
         }
@@ -191,7 +192,7 @@ export default class Minion implements IMiningDataProvider {
           queryFunc = async (page: Page): Promise<boolean> => {
             const tt = await getTheString(page)
             const rst = (<RegExp>query).test(tt)
-            return new Promise((resolve, _reject) => {
+            return new Promise((resolve) => {
               resolve(rst)
             })
           }
@@ -200,7 +201,7 @@ export default class Minion implements IMiningDataProvider {
           queryFunc = async (page: Page): Promise<boolean> => {
             const tt = await getTheString(page)
             const rst = tt.indexOf(String(query)) > -1
-            return new Promise((resolve, _reject) => {
+            return new Promise((resolve) => {
               resolve(rst)
             })
           }
@@ -242,7 +243,7 @@ export default class Minion implements IMiningDataProvider {
 
         resolve(page)
       }
-      // resolve(page)
+
       searchPage()
     })
   }
