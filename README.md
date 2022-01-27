@@ -1,16 +1,23 @@
-# Alien Worlds Robot
+# Alien Worlds Minions
+
+---
+A mining bot for Alien Worlds, was created for research purposes only, the developers and contributors take no responsibility for your WAX.io, AlienWorlds and, or other social accounts.
+---
 
 ## TODO
 
-- [ ] Email client, surpport WAX Login Verification Code
+- [ ] Resolve email 2FA validation
 - [ ] Intelligent next mint attempt
-  - [ ] Dynamic delay detect
+  - [x] Dynamic delay detect
   - [ ] CPU resource best guess
 - [ ] Multi account surpport, mining at same time
-- [ ] Tasking schedule
-- [ ] Add task report
+- [x] Tasking schedule
 - [ ] Task types
-  - [ ] Restore cookie task
+  - [x] Wax Login
+  - [x] AlienWorlds Login
+  - [x] Mining
+  - [ ] Account status, TLM amount and resouces useage of CPU, NET and RAM
+  - [ ] Dingding report. Report mining progress on schedual
 
 
 ## About task

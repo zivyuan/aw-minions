@@ -3,10 +3,10 @@ import config from "../config"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
 import { restoreCookie, saveCookie } from "../utils/cookie"
-import { disableTimeout } from "../utils/pputils"
+import { AccountInfo } from "../Minion"
+import { DATA_ACCOUNT_INFO, PAGE_TITLE_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
 
-
-export interface IAuthorizeResult {
+export interface IWaxLoginResult {
   account: string
   username: string
   tlm: number
@@ -17,21 +17,13 @@ const STEP_RESTORE_COOKIE = 'restore_cookie'
 const STEP_LOGIN = 'login'
 const STEP_SAVE_COOKIE = 'save_cookie'
 
-// const URL_WAX_CLOUD_WALLET_LOGIN = 'https://all-access.wax.io/cloud-wallet/login/'
 const URL_WAX_DOMAIN = "all-access.wax.io"
-const URL_WAX_WALLET_LOGIN = "https://all-access.wax.io/"
-
 
 const logger = new Logger()
-export class Authorize extends BaseTask<IAuthorizeResult> {
-  private username = ''
-  private password = ''
+export class WaxLogin extends BaseTask<IWaxLoginResult> {
 
-  constructor(username: string, password: string) {
+  constructor() {
     super('Task Authorize')
-
-    this.username = String(username).trim()
-    this.password = String(password).trim()
 
     this.registerStep(STEP_RESTORE_COOKIE, this.stepRestoreCookie, true)
     this.registerStep(STEP_LOGIN, this.stepLogin)
@@ -41,25 +33,24 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
   }
 
   private async stepRestoreCookie() {
-    const pages = await this.browser.pages()
-    const page = pages[pages.length - 1]
-    disableTimeout(page)
-    await page.goto(URL_WAX_WALLET_LOGIN)
-    await restoreCookie(this.username, URL_WAX_DOMAIN, page)
-    await page.goto(URL_WAX_WALLET_LOGIN + '?_nc=' + (new Date().getTime()))
+    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    logger.log('restore cookie...')
+    await restoreCookie(username, URL_WAX_DOMAIN, page)
+    sleep(1)
+    logger.log('Open wax wallet dashboard...')
 
     const determinNextStep = async () => {
       let btn_submit = null
       let avatar = null
 
       try {
-        // 在 WAX 自动登录成功后跳转到 dashboard 的过程中容易发生对象丢失的问题
-        const pages = await this.browser.pages()
-        const page = pages[pages.length - 1]
+        // Auto login redirects may cause crash
+        const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
         btn_submit = await page.$('.button-container button')
         avatar = await page.$('.profile .avatar')
       } catch (err) {
-        logger.log('Browser missing.........')
+        logger.log('Context missing.........')
       }
 
       if (btn_submit) {
@@ -67,13 +58,23 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
       } else if (avatar) {
         this.nextStep(STEP_SAVE_COOKIE)
       } else {
+        logger.log('Waiting for auto login...')
         setTimeout(() => {
           determinNextStep()
-        }, 2000)
+        }, 1000)
       }
     }
 
-    determinNextStep()
+    page.goto(URL_WAX_WALLET_LOGIN)
+      .then(rst => {
+        console.log('goto next step', rst)
+        // Set a delay after page loaded to avoid page redirect error
+        sleep(5)
+        determinNextStep()
+      })
+      .catch(err => {
+        logger.log('page load overtime', err)
+      })
   }
 
   private async stepLogin() {
@@ -84,32 +85,51 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
     const btn_submit = '.button-container button'
     const txt_error = '.button-container .error-container-login'
 
+    const { username, password } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+
+    let limitDelay = 0
     sleep(2)
-    logger.log('type username: ', this.username)
-    await this.page.type(iptUsernameCls, this.username, {
+    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    page.on('response', (resp) => {
+      if (resp.url().indexOf('https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e') === 0) {
+        console.log('resp: ', resp)
+        if (resp.status() === 429) {
+          const limited = resp.headers()['retry-after']
+          logger.log('Request limited by server. Retry after ' + limited + ' minute.')
+          clearTimeout(limitDelay)
+          limitDelay = setTimeout(async () => {
+            await page.click(btn_submit, {
+              delay: 120
+            })
+          }, parseInt(limited) * 60 * 1000)
+        }
+      }
+    })
+    logger.log('type username: ', username)
+    await page.type(iptUsernameCls, username, {
       delay: 15,
     });
     sleep(1)
-    logger.log('type password: ', this.password)
-    await this.page.type(iptPasswordCls, this.password, {
+    logger.log('type password: ', password)
+    await page.type(iptPasswordCls, password, {
       delay: 15,
     });
-    sleep(1)
-    await this.page.click(btn_submit, {
+    sleep(2)
+    await page.click(btn_submit, {
       delay: 120
     })
-    sleep(2)
+
 
     let errorCheckTimer = 0
     const checkLoginError = async () => {
       let errorMsg
       try {
-        const avatar = await this.page.$('.profile .avatar')
+        const avatar = await page.$('.profile .avatar')
         if (avatar) {
           throw new Error('login success')
         }
 
-        errorMsg = await this.page.$$eval(txt_error + ' ul li', (li) => {
+        errorMsg = await page.$$eval(txt_error + ' ul li', (li) => {
           return [...li].map(item => item.textContent)
         })
 
@@ -133,45 +153,30 @@ export class Authorize extends BaseTask<IAuthorizeResult> {
         }, config.tickInterval)
       }
     }
-
     checkLoginError()
   }
 
   private async stepSaveCookie() {
-    const searchAvart = async () => {
-      let pages = []
-      try {
-        pages = await this.browser.pages()
-      } catch (err) {
-        pages = []
-      }
+    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    await page.waitForSelector('.profile .avatar')
 
-      for (let i = pages.length - 1; i > 0; i--) {
-        const page = pages[i]
-        const avatar = await page.$('.profile .avatar')
-        if (avatar) {
-          await saveCookie(this.username, URL_WAX_DOMAIN, page)
-          sleep(1)
+    const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    await saveCookie(username, URL_WAX_DOMAIN, page)
 
-          logger.log('authorize pass')
+    logger.log('Wax login success')
+    this.complete(TaskState.Completed, '', {
+      username: username,
+      account: '',
+      tlm: 0
+    })
 
-          this.complete(TaskState.Completed, '', {
-            username: '',
-            account: '',
-            tlm: 0
-          })
-          return;
-        }
-      }
-
-      setTimeout(() => {
-        searchAvart()
-      }, 5000)
-    }
-
-    searchAvart()
   }
+
+  // private async step2FA() {
+  //   const ipt2FA = '.signin-2fa-container input'
+  //   const btnSubmit = '.signin-2fa-container button[type="submit"]'
+  // }
+
 }
 
-
-export default Authorize
+export default WaxLogin

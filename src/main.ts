@@ -5,15 +5,11 @@ import puppeteer, { Browser } from "puppeteer"
 import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "puppeteer"
 import Logger from './Logger'
 import config from './config'
-import AWLogin from './tasks/AWLogin'
-import Authorize from './tasks/WaxLogin'
-import Mining from './tasks/Mining'
-import SwitchOmega from './switchyomega'
-import { sleep } from 'sleep'
+import WaxLogin from './tasks/WaxLogin'
 import DingBot from './DingBot'
-import moment from 'moment'
-import { TaskState } from './tasks/BaseTask'
-import { random } from './utils/utils'
+import Minion from './Minion'
+import Mining from './tasks/Mining'
+import AWLogin from './tasks/AWLogin'
 
 interface IBotArguments {
   username: string[]
@@ -22,17 +18,25 @@ interface IBotArguments {
   endpoint: string
   accounts: string
   proxy: boolean
+  dev: boolean
 }
 
 
 const logger = new Logger('Main')
 const dingding = DingBot.getInstance(config.dingding)
 
+const getProxy = (proxy): string => {
+  return proxy === true
+  ? `${config.proxy.host}:${config.proxy.port}`
+  : proxy
+}
+
 const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _create = async (resolve, _reject) => {
     const option: LaunchOptions & BrowserLaunchArgumentOptions & ConnectOptions = {
-      ...config.browserOption
+      ...config.browserOption,
+      devtools: argv.dev
     }
     let browser = null;
     if (argv.endpoint) {
@@ -42,49 +46,14 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
         const ep = fs.readFileSync('.endpoint').toString().trim()
         option.browserWSEndpoint = ep
       }
-      // option.devtools = true
       browser = await puppeteer.connect(option);
     } else {
       if (argv.proxy) {
-        option.args.push('--disable-extensions-except=./chrome/Extensions/padekgcemlokbadohgkifijomclgjgif/2.5.21_0')
+        option.args.push(`--proxy-server=${getProxy(argv.proxy)}`)
       }
       browser = await puppeteer.launch(option);
-
-      if (argv.proxy) {
-        let proxyInitialed = false
-        let pageFound = false
-        browser.on('targetcreated', async (target) => {
-          if (proxyInitialed) {
-            return
-          }
-
-          const _browser = await target.browser()
-          const pages = await _browser.pages()
-          let page
-          const reg = /switchyomega/i
-          while( (page = pages.pop()) ) {
-            const title = await page.title()
-            if (reg.test(title)) {
-              pageFound = true
-              break;
-            }
-          }
-
-          if (!(pageFound && !proxyInitialed)) {
-            return
-          }
-
-          proxyInitialed = true
-
-          await SwitchOmega.initial(page)
-
-
-          resolve(browser)
-        })
-        // Wait for proxy extense initial
-        return
-      }
     }
+
     resolve(browser)
   }
 
@@ -111,6 +80,10 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "The password of the account",
       array: true,
     })
+    .option("id", {
+      describe: "The id of the account",
+      array: true,
+    })
     .option("platform", {
       alias: "P",
       describe: "Social platform",
@@ -125,79 +98,32 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     })
     .option("proxy", {
       describe: "Use SwitchOmega proxy",
-      boolean: true
+    })
+    .option("dev", {
+      describe: "Use SwitchOmega proxy",
+      boolean: true,
     })
     .demandOption(["username", "password"])
     .help("help").argv;
 
-
-  dingding.text('AW Minions\'s Owner start feeding...')
+  logger.log('Alien Worlds minions weaking...')
   // Initialize browser
   const browser = await createBrowser(argv);
-  // Remove unneccessery tabs
-  const pages = await browser.pages();
-  while(pages.length > 1) {
-    const page = pages.pop()
-    await page.close()
-    sleep(1)
+  //
+  if (argv.endpoint) {
+    let pages = await browser.pages()
+    while(pages.length > 1) {
+      const page = pages.shift()
+      await page.close()
+    }
   }
-  let mainPage = await browser.newPage();
-  mainPage.setDefaultTimeout(0);
-  mainPage.setDefaultNavigationTimeout(0);
 
-
-  const startMiner = async () => {
-    logger.log('Minions start working...')
-    dingding.text('Minions are start working...')
-    const miner = new Mining()
-    miner.start(browser, mainPage)
-      .then((rst) => {
-        const data = rst.data
-        // Add random delay to prevent multi minions works on same time
-        const delay = data.nextAttemptAt - new Date().getTime() + (3 + random(10)) * 1000
-        setTimeout(() => {
-          startMiner()
-        }, delay)
-        logger.log('Next mine attempt will start at: ', moment(data.nextAttemptAt).format('HH:mm'))
-        if (rst.state === TaskState.Abort) {
-          dingding.text(`Minions resouce empty.`)
-        }
-      })
-      .catch((err) => {
-        setTimeout(() => {
-          startMiner()
-        }, 5 * 60 * 1000)
-        const nextAttemptAt = new Date().getTime() + 5 * 60 * 1000
-        logger.log('Error occur: ', err)
-        logger.log('Next mine attempt will start at: ', moment(nextAttemptAt).format('HH:mm'))
-        dingding.text('Error occur: ', err)
-      })
-  };
-
-
-  const auth = new Authorize(argv.username[0], argv.password[0])
-  auth.start(browser, mainPage)
-    .then(async (rst) => {
-      logger.log('auth complete success', rst)
-
-      const pages = await browser.pages()
-      mainPage = pages[pages.length - 1]
-      await mainPage.goto("https://play.alienworlds.io/?_nc=" + (new Date().getTime()));
-
-      const login = new AWLogin()
-      login.start(browser, mainPage)
-        .then(() => {
-          startMiner()
-        })
-        .catch(err => {
-          logger.log('AW game login faile.', err)
-        })
-
-    })
-    .catch(err => {
-      logger.log('auth error: ', err)
-    })
-
+  const minion = new Minion(argv.username[0], argv.password[0])
+  minion.prepare(browser)
+  minion.addTask(WaxLogin, 1)
+  minion.addTask(AWLogin, 1)
+  minion.addTask(Mining)
+  minion.start()
 })();
 
 

@@ -16,6 +16,11 @@ export default {
       "--unhandled-rejections=strict",
     ],
   },
+  proxy: {
+    protocol: 'socks5',
+    host: '127.0.0.1',
+    port: '7890'
+  },
   mining: {
     // Coll down second when resource low
     lowResourceCoolDown: 30

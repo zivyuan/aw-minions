@@ -10,8 +10,8 @@ export default class Logger {
 
   setScope(scope: string) {
     this._scope = scope
-    this._fixLenScope = this._scope.length < 10
-      ? `          ${this._scope}`.substring(this._scope.length)
+    this._fixLenScope = this._scope.length < 16
+      ? `                ${this._scope}`.substring(this._scope.length)
       : this._scope
   }
 

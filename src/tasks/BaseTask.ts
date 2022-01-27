@@ -1,27 +1,10 @@
 import { Page } from "puppeteer"
-import { Browser } from "puppeteer"
 import config from "../config"
 import Logger from "../Logger"
-import {sleep} from 'sleep'
+import { sleep } from 'sleep'
+import { Browser } from "puppeteer"
+import { IMiningDataProvider } from "../Minion"
 
-export interface ITask<T> {
-  readonly name: string
-  readonly state: TaskState
-  readonly message: string
-  readonly phase: string
-  readonly phaseElapseTime: number
-
-  start(browser: Browser, page: Page, delay?: number): Promise<ITaskResult<T>>
-
-  stop(): void
-
-  /**
-   *
-   * @param browser Chromium browser instance
-   * @param page
-   */
-  // trigger(browser: Browser, page: Page): boolean
-}
 
 export enum TaskState {
   Idle,
@@ -45,15 +28,47 @@ export interface InspectorHandle {
 
 export interface ITaskResult<T> {
   state: TaskState
+  // The next awake time of task, make task tempoary sleep
   message: string
   data: T | null
+  awakeTime?: number
+}
+
+export enum TaskType {
+  Single,
+  Group
 }
 
 export type ITaskNoResult = null
 
+export interface ITask<T> {
+  readonly uuid: number
+  readonly name: string
+  readonly state: TaskState
+  readonly message: string
+  readonly phase: string
+  readonly phaseElapseTime: number
+  readonly type: TaskType
+
+  setProvider(provider: IMiningDataProvider): void
+
+  start(): Promise<ITaskResult<T>>
+
+  prepare(): Promise<void>
+
+  stop(): void
+
+  destroy(): void
+}
+
+export type TaskClass = typeof BaseTask & { meta: { [prop: string]: any } }
+
+let __uuid = 0
 const logger = new Logger()
 export default class BaseTask<T> implements ITask<T> {
+  private __uuid: number
   private _name = 'Task'
+  private _type: TaskType = TaskType.Single
 
   protected _message = ''
   protected _state: TaskState = TaskState.Idle
@@ -64,18 +79,26 @@ export default class BaseTask<T> implements ITask<T> {
   protected _resolve: (value: any) => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _reject: (reason?: any) => void
-  protected browser: Browser
-  protected page: Page
   // 子步骤终止
   protected _terminateHandle: () => void
   private _steps: TaskStep = {}
   private _entrance: string
+  private _provider: IMiningDataProvider
 
   constructor(name: string) {
     this._name = name
     this._phaseTimeMark = new Date().getTime()
+    this.__uuid = __uuid++
 
     logger.setScope(name)
+  }
+
+  get uuid(): number {
+    return this.__uuid
+  }
+
+  get type(): TaskType {
+    return this._type
   }
 
   get name(): string {
@@ -99,6 +122,10 @@ export default class BaseTask<T> implements ITask<T> {
     return current - this._phaseTimeMark
   }
 
+  protected get provider(): IMiningDataProvider {
+    return this._provider
+  }
+
   protected get entrance(): string {
     return this._entrance
   }
@@ -116,7 +143,6 @@ export default class BaseTask<T> implements ITask<T> {
     }
 
     const step = this._steps[name]
-    logger.log(`Step ${name}`)
     this.updatePhase('step-' + name)
     step.call(this)
   }
@@ -138,12 +164,32 @@ export default class BaseTask<T> implements ITask<T> {
     }
   }
 
+  /**
+   * Test condition until excepted
+   * @param condition Test function
+   * @returns Test result
+   */
+  protected async waitUtil<T>(condition: () => any): Promise<T> {
+    return new Promise((resolve, _reject) => {
+      const loop = async () => {
+        try {
+          const rst = await condition()
+          resolve(rst)
+        } catch(err) {
+          setTimeout(() => {
+            this.waitUtil(condition)
+          }, 500)
+        }
+      }
+      loop()
+    })
+  }
+
   protected updatePhase(phase: string) {
     if (this._phase === phase) {
       return
     }
 
-    logger.log(`update phase: ${phase}`)
     this._phaseTimeMark = new Date().getTime()
     this._phase = phase
   }
@@ -155,24 +201,24 @@ export default class BaseTask<T> implements ITask<T> {
     this._reject(message)
   }
 
-  protected complete(state: TaskState, message?: string, data?: T) {
+  protected complete(state: TaskState, message?: string, data?: T, awake?: number) {
     this._state = state
     this._message = message || ''
     this._resolve({
       state: this._state,
       message: this._message,
-      data: data || null
+      data: data || null,
+      awakeTime: awake
     })
   }
 
-  start(browser: Browser, page: Page, delay = 0): Promise<ITaskResult<T>> {
-    this.browser = browser
-    this.page = page
+  setProvider(provider: IMiningDataProvider): void {
+    this._provider = provider
+  }
 
-    if (delay) {
-      sleep(delay)
-    }
+  async prepare(): Promise<void> {}
 
+  start(): Promise<ITaskResult<T>> {
     return new Promise((resolve, reject) => {
       this._resolve = resolve
       this._reject = reject
@@ -188,6 +234,8 @@ export default class BaseTask<T> implements ITask<T> {
     this._reject(new Error('User terminated.'))
   }
 
+  destroy(): void {}
+
   /**
    *
    * @param handle An inspect function, accept a browser and a page as parameter
@@ -199,7 +247,7 @@ export default class BaseTask<T> implements ITask<T> {
       const loop = async () => {
         let rst
         try {
-          rst = await handle(this.browser, this.page)
+          rst = await handle(null, null)
         } catch (err) {
           reject(err)
         }
