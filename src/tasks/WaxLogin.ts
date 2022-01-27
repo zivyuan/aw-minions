@@ -91,8 +91,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     sleep(2)
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     page.on('response', (resp) => {
-      if (resp.url().indexOf('https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e') === 0) {
-        console.log('resp: ', resp)
+      if (resp.url().indexOf('https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e') > -1) {
         if (resp.status() === 429) {
           const limited = resp.headers()['retry-after']
           logger.log('Request limited by server. Retry after ' + limited + ' minute.')
