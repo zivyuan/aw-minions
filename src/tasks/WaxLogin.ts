@@ -36,8 +36,8 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   private async stepRestoreCookie() {
     logger.log('Restore cookie...')
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-    const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    await restoreCookie(username, URL_WAX_DOMAIN, page)
+    const { account } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    await restoreCookie(account, URL_WAX_DOMAIN, page)
     sleep(1)
 
     this.nextStep(STEP_AUTO_LOGIN)
