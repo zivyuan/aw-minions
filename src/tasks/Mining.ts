@@ -140,7 +140,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
     total = parseFloat(tlm)
-    reward = total - this._tlm
+    reward = Math.round((total - this._tlm) * 10000) / 10000
 
     const result: IMiningResult = {
       nextAttemptAt: awakeTime,
