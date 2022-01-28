@@ -10,6 +10,7 @@ import DingBot from './DingBot'
 import Minion from './Minion'
 import Mining from './tasks/Mining'
 import AWLogin from './tasks/AWLogin'
+import ClaimStakeRewards from './tasks/ClaimStakeRewards'
 
 interface IBotArguments {
   /**
@@ -164,6 +165,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   minion.addTask(WaxLogin, 1)
   minion.addTask(AWLogin, 1)
   minion.addTask(Mining)
+  minion.addTask(ClaimStakeRewards)
   minion.start()
 })();
 

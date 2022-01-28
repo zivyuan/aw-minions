@@ -3,7 +3,7 @@ import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
 import { restoreCookie, saveCookie } from "../utils/cookie"
 import { AccountInfo } from "../Minion"
-import { DATA_ACCOUNT_INFO, PAGE_TITLE_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
+import { DATA_ACCOUNT_INFO, PAGE_FILTER_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
 import DingBot from "../DingBot"
 
 export interface IWaxLoginResult {

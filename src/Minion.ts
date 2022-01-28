@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Browser, Page } from "puppeteer";
+import config from "./config";
 import Logger from "./Logger";
 import { ITask, ITaskResult, TaskState } from "./tasks/BaseTask";
 import { DATA_ACCOUNT_INFO } from "./utils/constant";
@@ -102,6 +103,7 @@ export default class Minion implements IMiningDataProvider {
     clearTimeout(this._pollingId)
   }
 
+  private _nextTaskTimer = 0
   private _polling() {
     if (this.state !== MiningState.Idle) {
       this._schedulePolling()
@@ -113,10 +115,17 @@ export default class Minion implements IMiningDataProvider {
       return
     }
 
+    const mark = new Date().getTime()
+    if (mark < this._nextTaskTimer) {
+      this._schedulePolling()
+      return
+    }
+
     const ts = new Date().getTime()
     const currentTask = this._taskPool[this._pollingIndex]
     if (currentTask.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
       const task: ITask<any> = new (currentTask.Class)()
+      logger.log(`Task #${task.no} ${task.name} started.`)
       task.setProvider(this)
       task.prepare()
       task.start()
@@ -147,10 +156,10 @@ export default class Minion implements IMiningDataProvider {
           this._state = MiningState.Idle
           this._currentTask.destroy()
           this._currentTask = null
+          this._nextTaskTimer = new Date().getTime() + config.minion.taskInterval * 1000
         })
       this._currentTask = task
       this._state = MiningState.Busy
-      logger.log(`Task #${task.no} ${task.name} started.`)
     }
 
     //
@@ -252,6 +261,7 @@ export default class Minion implements IMiningDataProvider {
         }
 
         page.setUserAgent(this._userAgent)
+        await page.bringToFront()
 
         resolve(page)
       }

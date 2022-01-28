@@ -29,5 +29,9 @@ export default {
   dingding: {
     webhook: 'https://oapi.dingtalk.com/robot/send?access_token=9af84564bfffabbbbf76053b3aa5393901a46e838f3f173c393d1fc6b9f76f2b',
     secret: "SEC2d08891ffd4e42be8d4b5c1e136f63e3388eeab82a94045f743755a2796e3629",
+  },
+  minion: {
+    // Delays between two task, default 30 second
+    taskInterval: 30
   }
 }
