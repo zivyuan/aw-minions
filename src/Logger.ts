@@ -1,6 +1,9 @@
 import moment from "moment"
 
 export default class Logger {
+  // Wax block chain account
+  static account = ''
+
   private _scope: string
   private _fixLenScope: string
 
@@ -17,8 +20,9 @@ export default class Logger {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private prefix(args: any[]): any[] {
-    const time = moment().format('HH:mm')
-    const prefixs = [`[${time}][${this._fixLenScope}]`]
+    const time = moment().format('HH:mm:SS')
+    const acc = Logger.account ? `[${Logger.account}]` : ''
+    const prefixs = [`[${time}]${acc}[${this._fixLenScope}]`]
     return prefixs.concat(args)
   }
 

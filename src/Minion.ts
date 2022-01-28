@@ -59,7 +59,7 @@ export default class Minion implements IMiningDataProvider {
 
   constructor(username: string, password: string, id?: string) {
     const info = {
-      id: String(id || 'noname').trim(),
+      id: String(id || '').trim(),
       username: String(username).trim(),
       password: String(password).trim(),
     }
@@ -118,10 +118,10 @@ export default class Minion implements IMiningDataProvider {
           if (rst.awakeTime) {
             currentTask.awakeTime = rst.awakeTime
           }
-          logger.log(task.name, 'complete with', TaskState[rst.state], '. ', rst.message)
+          logger.log(`Task [${task.name}] complete with state: ${TaskState[rst.state]}`)
         })
         .catch(err => {
-          logger.log(task.name, 'running error', err)
+          logger.log(`Task [${task.name}] complete with error: ${err}`)
         })
         .finally(() => {
           let polling = 1
@@ -144,6 +144,7 @@ export default class Minion implements IMiningDataProvider {
         })
       this._currentTask = task
       this._state = MiningState.Busy
+      logger.log(`Task [${task.name}] start.`)
     }
 
     //
@@ -224,7 +225,6 @@ export default class Minion implements IMiningDataProvider {
 
         if (!page) {
           if (newUrl === false) {
-            logger.log(`Searching ${query} ...`)
             setTimeout(() => {
               searchPage()
             }, 500)
@@ -255,7 +255,7 @@ export default class Minion implements IMiningDataProvider {
   getData<T>(key: string): T {
     key = this.uniformKey(key)
     const data = JSON.parse(JSON.stringify(this._data[key]))
-    return <T>data
+    return <T>(data  || {})
   }
 
   setData(key: string, data: any): void {

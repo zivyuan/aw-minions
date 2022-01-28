@@ -11,7 +11,7 @@ export interface IAWLoginResult {
 const logger = new Logger()
 export default class AWLogin extends BaseTask<IAWLoginResult> {
   constructor() {
-    super('AWLogin')
+    super('AW Login')
 
     this.registerStep('login', this.stepLogin, true)
     this.registerStep('check-login', this.stepCheckLogin)
@@ -21,6 +21,7 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
 
   private async stepLogin() {
     const page = await this.provider.getPage(PAGE_TITLE_ALIEN_WORLDS, URL_ALIEN_WORLDS)
+    logger.log('Start login, knock knock...')
     await page.waitForSelector('.css-yfg7h4 .css-t8p16t')
     await page.click('.css-yfg7h4 .css-t8p16t', {
       delay: 80

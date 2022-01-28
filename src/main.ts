@@ -6,24 +6,54 @@ import { BrowserLaunchArgumentOptions, ConnectOptions, LaunchOptions } from "pup
 import Logger from './Logger'
 import config from './config'
 import WaxLogin from './tasks/WaxLogin'
-// import DingBot from './DingBot'
+import DingBot from './DingBot'
 import Minion from './Minion'
 import Mining from './tasks/Mining'
 import AWLogin from './tasks/AWLogin'
 
 interface IBotArguments {
+  /**
+   * Wax wallet account
+   */
   username: string[]
+  /**
+   * Wax wallet password
+   */
   password: string[]
-  platform: string
-  endpoint: string
+  /**
+   * Wax blockchain account
+   */
+  account: string[]
+  /**
+   * Json formatted account list
+   * !!! NOT IMPLEMENTED YET !!!
+   */
   accounts: string
-  proxy: boolean
+  /**
+   * Set a proxy
+   *   --proxy             Set default proxy: 127.0.0.1:7890
+   *   --proxy host:port   Set new proxy address
+   */
+  proxy: boolean | string
+  /**
+   * Use an endpoint to speed up page loading in develop
+   */
+  endpoint: string
+  /**
+   * Social network openid surpport
+   * !!! NOT IMPLEMENTED YET !!!
+   */
+  platform: string
+  /**
+   * Show devtool when page open
+   */
   dev: boolean
 }
 
 
+// Just initialize
 const logger = new Logger('Main')
-// const dingding = DingBot.getInstance(config.dingding)
+DingBot.getInstance(config.dingding)
 
 const getProxy = (proxy): string => {
   return proxy === true
@@ -80,7 +110,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "The password of the account",
       array: true,
     })
-    .option("id", {
+    .option("account", {
+      alias: 'a',
       describe: "The id of the account",
       array: true,
     })
@@ -106,7 +137,11 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     .demandOption(["username", "password"])
     .help("help").argv;
 
-  logger.log('Alien Worlds minions weaking...')
+  if (argv.username.length > 1) {
+    logger.log('Alien World\'s minions are weaking...')
+  } else {
+    logger.log('Alien World\'s minion is weaking...')
+  }
   // Initialize browser
   const browser = await createBrowser(argv);
   //
@@ -118,6 +153,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     }
   }
 
+  Logger.account = (argv.account && argv.account.length) ? argv.account[0].trim() : ''
   const minion = new Minion(argv.username[0], argv.password[0])
   minion.prepare(browser)
   minion.addTask(WaxLogin, 1)

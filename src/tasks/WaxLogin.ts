@@ -1,10 +1,10 @@
 import { sleep } from "sleep"
-import config from "../config"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
 import { restoreCookie, saveCookie } from "../utils/cookie"
 import { AccountInfo } from "../Minion"
 import { DATA_ACCOUNT_INFO, PAGE_TITLE_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
+import DingBot from "../DingBot"
 
 export interface IWaxLoginResult {
   account: string
@@ -14,6 +14,7 @@ export interface IWaxLoginResult {
 
 // const STEP_CHECK_COOKIE_CACHE = 'check_cookie_cache'
 const STEP_RESTORE_COOKIE = 'restore_cookie'
+const STEP_AUTO_LOGIN = 'auto_login'
 const STEP_LOGIN = 'login'
 const STEP_SAVE_COOKIE = 'save_cookie'
 
@@ -23,9 +24,10 @@ const logger = new Logger()
 export class WaxLogin extends BaseTask<IWaxLoginResult> {
 
   constructor() {
-    super('Task Authorize')
+    super('Wax Login')
 
     this.registerStep(STEP_RESTORE_COOKIE, this.stepRestoreCookie, true)
+    this.registerStep(STEP_AUTO_LOGIN, this.stepAutoLogin)
     this.registerStep(STEP_LOGIN, this.stepLogin)
     this.registerStep(STEP_SAVE_COOKIE, this.stepSaveCookie)
 
@@ -35,10 +37,14 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   private async stepRestoreCookie() {
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    logger.log('restore cookie...')
+    logger.log('Restore cookie...')
     await restoreCookie(username, URL_WAX_DOMAIN, page)
     sleep(1)
-    logger.log('Open wax wallet dashboard...')
+
+    this.nextStep(STEP_AUTO_LOGIN)
+  }
+
+  private async stepAutoLogin() {
 
     const determinNextStep = async () => {
       let btn_submit = null
@@ -54,6 +60,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       }
 
       if (btn_submit) {
+        logger.log('A~~~h~~~~~~~, I got caught! Wait! I have an ID!!!')
         this.nextStep(STEP_LOGIN)
       } else if (avatar) {
         this.nextStep(STEP_SAVE_COOKIE)
@@ -65,15 +72,17 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       }
     }
 
+    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    logger.log('Try auto login, be quiet!')
     page.goto(URL_WAX_WALLET_LOGIN)
-      .then(rst => {
-        console.log('goto next step', rst)
-        // Set a delay after page loaded to avoid page redirect error
-        sleep(5)
+      .then(() => {
         determinNextStep()
       })
       .catch(err => {
-        logger.log('page load overtime', err)
+        logger.log('Page load error:', err)
+        setTimeout(() => {
+          this.stepAutoLogin()
+        }, 1000)
       })
   }
 
@@ -87,39 +96,52 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
 
     const { username, password } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
 
+    logger.log(`Login with ${username}...`)
+
     let limitDelay = 0
-    sleep(2)
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    const sentryURL = 'https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e'
     page.on('response', (resp) => {
-      if (resp.url().indexOf('https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e') > -1) {
-        if (resp.status() === 429) {
-          const limited = resp.headers()['retry-after']
-          logger.log('Request limited by server. Retry after ' + limited + ' minute.')
-          clearTimeout(limitDelay)
-          limitDelay = setTimeout(async () => {
-            await page.click(btn_submit, {
-              delay: 120
-            })
-          }, parseInt(limited) * 60 * 1000)
-        }
+      if (resp.url().indexOf(sentryURL) === -1) {
+        return
       }
+
+      const status = resp.status()
+      if (status === 200) {
+        return
+      }
+
+      let delay = 5 * 60 * 1000
+      if (status === 429) {
+        const limited = resp.headers()['retry-after']
+        delay = parseInt(limited) * 60 * 1000
+        logger.log('Login was limited by server. Retry later ...')
+      }
+
+      clearTimeout(limitDelay)
+      limitDelay = setTimeout(async () => {
+        await page.click(btn_submit, {
+          delay: 120
+        })
+      }, delay)
     })
-    logger.log('type username: ', username)
+
+    await page.waitForSelector(iptUsernameCls)
+    sleep(2)
     await page.type(iptUsernameCls, username, {
       delay: 15,
     });
     sleep(1)
-    logger.log('type password: ', password)
     await page.type(iptPasswordCls, password, {
-      delay: 15,
+      delay: 16,
     });
     sleep(2)
     await page.click(btn_submit, {
-      delay: 120
+      delay: 88
     })
 
-
     let errorCheckTimer = 0
+    let prevError = ''
     const checkLoginError = async () => {
       let errorMsg
       try {
@@ -139,30 +161,39 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       }
 
       if (errorMsg && errorMsg.length) {
-        logger.log('Login error:', errorMsg)
-        this.completeWithError(errorMsg.join('\n'))
-      } else {
-        const elapse = this.phaseElapseTime
-        if (elapse > config.taskPhaseTimeout) {
-          this.completeWithError('Task overtime!')
-          return
+        const msg = errorMsg.join('\n')
+        if (prevError !== msg) {
+          // Uh-oh, you have too many failed login attempts. Check your username and password and try again after 30 minutes
+          logger.log('Seriously? You make THIS SIMPLE STUPID  mistake ... ')
+          logger.log(msg)
+          logger.log('*** Please fix errors and click [LOGIN] button to continue ... ***')
+          prevError = msg
+          DingBot.getInstance().text(`Login error with username: ${username}! Please fix this manual. \n ${msg}`)
         }
-        errorCheckTimer = setTimeout(() => {
-          checkLoginError()
-        }, config.tickInterval)
+        // this.completeWithError(errorMsg.join('\n'))
+      // } else {
+      //   const elapse = this.phaseElapseTime
+      //   if (elapse > config.taskPhaseTimeout) {
+      //     this.completeWithError('Task overtime!')
+      //     return
+      //   }
       }
+      errorCheckTimer = setTimeout(() => {
+        checkLoginError()
+      }, 500)
     }
     checkLoginError()
   }
 
   private async stepSaveCookie() {
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    logger.log('Save cookie ...')
     await page.waitForSelector('.profile .avatar')
 
     const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
     await saveCookie(username, URL_WAX_DOMAIN, page)
 
-    logger.log('Wax login success')
+    logger.log('Wax login success.')
     this.complete(TaskState.Completed, '', {
       username: username,
       account: '',

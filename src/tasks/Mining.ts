@@ -5,6 +5,7 @@ import Logger from "../Logger";
 import { PAGE_FILTER_SIGN } from "../utils/constant";
 import moment from "moment";
 
+const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
 const CLS_BTN_CLAIM = '.css-1i7t220 .css-f33lh6 .css-1knsxs2 .css-t8p16t'
 const CLS_BTN_COOLDOWN = '.css-1i7t220 .css-f33lh6 .css-2s09f0'
@@ -12,9 +13,10 @@ const CLS_TXT_COOLDOWN = '.css-1i7t220 .css-f33lh6 .css-2s09f0 .css-ov2nki'
 // const CLS_TXT_NEXT_MINE = '.css-1i7t220 .css-f33lh6 .css-2s09f0 .css-1phfdwl'
 const CLS_BTN_APPROVE = '.authorize-transaction-container .react-ripples button'
 
+const STEP_PREPARE = 'prepare'
 const STEP_MINE = 'mine'
 const STEP_CLAIM = 'claim'
-const STEP_APPROVE = 'apprive'
+const STEP_APPROVE = 'approve'
 const STEP_CONFIRM = 'comfirm'
 
 // 挖矿请求接口: https://aw-guard.yeomen.ai/v1/chain/push_transaction
@@ -42,6 +44,7 @@ const logger = new Logger('Mining Task')
 
 export interface IMiningResult {
   nextAttemptAt: number
+  total: number
   reward: number
   cpu?: number
   net?: number
@@ -51,24 +54,31 @@ export interface IMiningResult {
 const PAGE_TITLE = 'Alien Worlds'
 
 export default class Mining extends BaseTask<IMiningResult> {
+  private _tlm = 0
 
   constructor() {
-    super('Mining Task')
+    super('Mining')
 
-    this.registerStep(STEP_MINE, this.stepMine, true)
+    this.registerStep(STEP_PREPARE, this.stepPrepare, true)
+    this.registerStep(STEP_MINE, this.stepMine)
     this.registerStep(STEP_CLAIM, this.stepClaim)
     this.registerStep(STEP_APPROVE, this.stepApprove)
     this.registerStep(STEP_CONFIRM, this.stepConfirm)
   }
 
+  private async stepPrepare() {
+    const page = await this.provider.getPage(PAGE_TITLE)
+    const cls = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
+    this._tlm = parseFloat(cls)
+    logger.log(`Current TLM: ${this._tlm}`)
+    this.nextStep(STEP_MINE)
+  }
+
   private async stepMine() {
     const page = await this.provider.getPage(PAGE_TITLE)
-    const btn = await page.$$(CLS_BTN_MINE)
-    if (!btn.length) {
-      this.tick(STEP_MINE)
-      return
-    }
+    logger.log('Mining...')
 
+    await page.waitForSelector(CLS_BTN_MINE)
     await page.click(CLS_BTN_MINE, {
       delay: 50 + random(200)
     })
@@ -79,12 +89,9 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepClaim() {
     const page = await this.provider.getPage(PAGE_TITLE)
-    const btn = await page.$$(CLS_BTN_CLAIM)
-    if (!btn.length) {
-      this.tick(STEP_CLAIM)
-      return
-    }
+    logger.log('Claiming...')
 
+    await page.waitForSelector(CLS_BTN_CLAIM)
     await page.click(CLS_BTN_CLAIM, {
       delay: 1500 + random(5000)
     })
@@ -95,6 +102,8 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepApprove() {
     const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, false, true)
+    logger.log('Waiting approve...')
+
     await approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60  * 1000})
     await approvePage.click(CLS_BTN_APPROVE, {
       delay: 500 + random(2000)
@@ -106,45 +115,102 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepConfirm() {
     const page = await this.provider.getPage(PAGE_TITLE)
     const btnMine = await page.$(CLS_BTN_MINE)
+    const txtCoolDown = await page.$(CLS_TXT_COOLDOWN)
 
-    if (btnMine) {
-      // 资源不足了, 默认30分钟后再次尝试
-      const seconds = 30 * 60 * 1000
-      const awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
-      const data: IMiningResult = {
-        nextAttemptAt: awakeTime,
-        reward: 0
-      }
-      logger.log('Next mining attempt at ', moment(awakeTime).format('HH:mm'))
-      this.complete(TaskState.Abort, 'No enough resource to mining.', data, awakeTime)
-      return
-    }
-
-    const btn = await page.$(CLS_BTN_COOLDOWN)
-
-    if (!btn) {
+    if (!btnMine && !txtCoolDown) {
       this.tick(STEP_CONFIRM)
       return
     }
 
-    const txt = await page.$$(CLS_TXT_COOLDOWN)
-    if (txt.length) {
+    let outOfCPU = false
+    let total = 0
+    let reward = 0
+    let awakeTime = 0
+
+    if (btnMine) {
+      outOfCPU = true
+      awakeTime = new Date().getTime() + 30 * 60 * 1000 + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
+    } else {
       const countDown = await page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
       const seconds = countDown.split(':')
         .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
         .reduce((a, b) => a + b) * 1000
-      // Set a random delay for every task
-      const awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
-      logger.log('Next mining attempt at ', moment(awakeTime).format('HH:mm'))
-      const data: IMiningResult = {
-        nextAttemptAt: awakeTime,
-        reward: 0
-      }
-      this.complete(TaskState.Completed, '', data, awakeTime)
-
-    } else {
-      this.tick(STEP_CONFIRM)
+      awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
     }
+
+    const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
+    total = parseFloat(tlm)
+    reward = total - this._tlm
+
+    const result: IMiningResult = {
+      nextAttemptAt: awakeTime,
+      total,
+      reward,
+    }
+
+    if (outOfCPU) {
+      logger.log('Ahhhhhhh~~hhh~~~~~~~~~, bana~~~nnnnana~~')
+      logger.log(`Mining reward:  0 TLM, current total: ${total} TLM.`)
+      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+      this.complete(TaskState.Abort, 'Out of CPU.', result, awakeTime)
+    } else {
+      logger.log(`${reward} trilium! La~~~lala~~~~~~~, ba~~~~nnnnnnana~~`)
+      logger.log(`Mining reward: ${reward} TLM, current total: ${total} TLM.`)
+      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+      this.complete(TaskState.Completed, 'Success', result, awakeTime)
+    }
+
+    //
+
+    // if (btnMine) {
+    //   // 资源不足了, 默认30分钟后再次尝试
+    //   const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
+    //   const totalTlm = parseFloat(tlm)
+    //   const seconds = 30 * 60 * 1000 + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
+    //   const awakeTime = new Date().getTime() + seconds
+    //   const data: IMiningResult = {
+    //     nextAttemptAt: awakeTime,
+    //     total: totalTlm,
+    //     reward: 0
+    //   }
+    //   logger.log('Ahhhhhhh~~hhh~~~~~~~~~, bana~~~nnnnana~~')
+    //   logger.log(`Mining reward:  0 TLM, current total: ${totalTlm} TLM.`)
+    //   logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+    //   this.complete(TaskState.Abort, 'Out of CPU.', data, awakeTime)
+    //   return
+    // }
+
+    // const btn = await page.$(CLS_BTN_COOLDOWN)
+
+    // if (!btn) {
+    //   this.tick(STEP_CONFIRM)
+    //   return
+    // }
+
+    // const txt = await page.$(CLS_TXT_COOLDOWN)
+    // if (txt) {
+    //   const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
+    //   const total = parseFloat(tlm)
+    //   const reward = total - this._tlm
+    //   const countDown = await page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
+    //   const seconds = countDown.split(':')
+    //     .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
+    //     .reduce((a, b) => a + b) * 1000
+    //   // Set a random delay for every task
+    //   const awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
+    //   const data: IMiningResult = {
+    //     nextAttemptAt: awakeTime,
+    //     total: total,
+    //     reward
+    //   }
+    //   logger.log(`${reward} trilium! La~~~lala~~~~~~~, ba~~~~nnnnnnana~~`)
+    //   logger.log(`Mining reward: ${reward} TLM, current total: ${total} TLM.`)
+    //   logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+    //   this.complete(TaskState.Completed, 'Success', data, awakeTime)
+
+    // } else {
+    //   this.tick(STEP_CONFIRM)
+    // }
 
   }
 }

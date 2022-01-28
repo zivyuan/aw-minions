@@ -20,11 +20,19 @@ A mining bot for Alien Worlds, was created for research purposes only, the devel
   - [ ] Dingding report. Report mining progress on schedual
 
 
-## About task
+## Install and run
 
-A task consists of one or more steps to implement a function, such as mining.
+Download source code, open terminal and goto the source folder, then follow the steps below:
 
-A step implements a single function and is the smallest unit of task execution. Each step should be allowed to be executed independently of the task it belongs to, which will bring great flexibility.
+```
+npm install
+
+npm run build
+
+node main.js -u your-username -p your-password
+```
+
+More command line options see **CLI Options** section
 
 ## CLI Options
 
@@ -35,12 +43,8 @@ Command line Options
   -p, --password  Password, required. Must pair with username
       --endpoint  Develop option, use a shared chromium instance for fast load
       --accounts  Account pool json file
-      --proxy     Use SwitchOmega proxy
+      --proxy     Use proxy. Default is `127.0.0.1:7890`
+                  ie: `--proxy address` or just `--proxy` to use default address
       --help      Show helps
 ```
 
-## Usage
-
-## Proxy
-
-If SwitchyOmega extension enabled, must select proxy type to **[Auto switch]** by manual.
