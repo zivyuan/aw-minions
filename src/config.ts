@@ -1,7 +1,22 @@
+import fs from 'fs'
+import path from 'path'
+
 const winWid = 1280
 const winHei = 840
 
-export default {
+const confJson = path.resolve('./minions.json')
+
+let customConf = {}
+if (fs.existsSync(confJson)) {
+  let content = fs.readFileSync(confJson).toString().trim()
+  content = content.replace(/[\t ]+\/\/.*(\r|\n|\r\n)/g, '')
+  try {
+    customConf = JSON.parse(content)
+    // eslint-disable-next-line no-empty
+  } catch (err) { }
+}
+
+const conf = Object.assign({
   //
   tickInterval: 200,
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
@@ -27,11 +42,13 @@ export default {
   },
   //
   dingding: {
-    webhook: 'https://oapi.dingtalk.com/robot/send?access_token=9af84564bfffabbbbf76053b3aa5393901a46e838f3f173c393d1fc6b9f76f2b',
-    secret: "SEC2d08891ffd4e42be8d4b5c1e136f63e3388eeab82a94045f743755a2796e3629",
+    webhook: "",
+    secret: "",
   },
   minion: {
     // Delays between two task, default 30 second
     taskInterval: 30
   }
-}
+}, customConf)
+
+export default conf

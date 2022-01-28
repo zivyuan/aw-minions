@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Dingding talk robot
  *
@@ -60,8 +61,11 @@ export default class DingBot {
     this.conf = conf
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _send(message: any) {
+  private _send(message: any): Promise<any> {
+    if (!this.conf.webhook || !this.conf.secret) {
+      return null
+    }
+
     const timestamp = new Date().getTime()
     const msgToSign = timestamp + "\n" + this.conf.secret
 
@@ -73,7 +77,7 @@ export default class DingBot {
     return axios.post(url, message, {})
   }
 
-  text(content: string, at?: IDingAtGroup | boolean) {
+  text(content: string, at?: IDingAtGroup | boolean): Promise<any> {
     return this._send({
       at: typeof at === 'boolean' ? { isAtAll: at } : at,
       text: {
