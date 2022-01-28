@@ -104,11 +104,13 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       alias: "u",
       describe: "Social account to login in Alien Worlds",
       array: true,
+      default: [],
     })
     .option("password", {
       alias: "p",
       describe: "The password of the account",
       array: true,
+      default: []
     })
     .option("account", {
       alias: 'a',
@@ -134,9 +136,10 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "Use SwitchOmega proxy",
       boolean: true,
     })
-    .demandOption(["username", "password"])
+    .demandOption(["account"])
     .help("help").argv;
 
+  Logger.account = argv.account[0].trim()
   if (argv.username.length > 1) {
     logger.log('Alien World\'s minions are weaking...')
   } else {
@@ -153,8 +156,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     }
   }
 
-  Logger.account = (argv.account && argv.account.length) ? argv.account[0].trim() : ''
-  const minion = new Minion(argv.username[0], argv.password[0])
+  const minion = new Minion(argv.account[0], argv.username[0], argv.password[0])
   minion.prepare(browser)
   minion.addTask(WaxLogin, 1)
   minion.addTask(AWLogin, 1)

@@ -20,6 +20,7 @@ export enum MiningState {
 type PageQueryFunc = (page: Page) => Promise<boolean>
 
 export interface AccountInfo {
+  account: string
   username: string
   password: string
 }
@@ -57,17 +58,17 @@ export default class Minion implements IMiningDataProvider {
   private _data: { [prop: string]: any } = {}
   private _userAgent: string
 
-  constructor(username: string, password: string, id?: string) {
+  constructor(account: string, username?: string, password?: string) {
     const info = {
-      id: String(id || '').trim(),
-      username: String(username).trim(),
-      password: String(password).trim(),
+      account: String(account).trim(),
+      username: String(username || '').trim(),
+      password: String(password || '').trim(),
     }
     this.setData(DATA_ACCOUNT_INFO, info)
 
     this._userAgent = randomUserAgent()
 
-    logger.setScope('Minion ' + info.id.replace(/\.wam/, ''))
+    logger.setScope('Minion')
     logger.log('use useragent: ', this._userAgent)
   }
 
@@ -175,6 +176,7 @@ export default class Minion implements IMiningDataProvider {
     return new Promise((resolve) => {
       const searchPage = async () => {
         const pages = await this.browser.pages()
+        const blankPages: Page[] = []
         let page: Page
         let queryFunc: PageQueryFunc
         const getTheString = async (page: Page): Promise<string> => {
@@ -210,10 +212,15 @@ export default class Minion implements IMiningDataProvider {
 
         try {
           for (let i = 0; i < pages.length; i++) {
-            const rst = await queryFunc(pages[i])
-            if (rst) {
+            const p = pages[i]
+            const rst = await queryFunc(p)
+            if (rst && !page) {
               page = pages[i]
-              break
+            }
+            //
+            const url = await p.evaluate(`document.location.href`)
+            if (url === 'about:blank') {
+              blankPages.push(p)
             }
           }
         } catch(err) {
@@ -230,7 +237,11 @@ export default class Minion implements IMiningDataProvider {
             }, 500)
             return
           } else {
-            page = await this.browser.newPage()
+            if (blankPages.length) {
+              page = blankPages.shift()
+            } else {
+              page = await this.browser.newPage()
+            }
             page.setDefaultTimeout(0)
             page.setDefaultNavigationTimeout(0)
             if (typeof newUrl === 'string') {

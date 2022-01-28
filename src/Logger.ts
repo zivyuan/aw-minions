@@ -1,28 +1,32 @@
 import moment from "moment"
 
+
+let _scopeMaxLen = 10
+
 export default class Logger {
   // Wax block chain account
   static account = ''
 
   private _scope: string
-  private _fixLenScope: string
 
   constructor(scope?: string) {
-    this.setScope(scope || '')
+    this.setScope(scope || '-')
   }
 
   setScope(scope: string) {
-    this._scope = scope
-    this._fixLenScope = this._scope.length < 16
-      ? `                ${this._scope}`.substring(this._scope.length)
-      : this._scope
+    this._scope = scope.trim()
+    _scopeMaxLen = Math.max(this._scope.length, _scopeMaxLen)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private prefix(args: any[]): any[] {
     const time = moment().format('HH:mm:SS')
     const acc = Logger.account ? `[${Logger.account}]` : ''
-    const prefixs = [`[${time}]${acc}[${this._fixLenScope}]`]
+    const prefix = Math.ceil((_scopeMaxLen - this._scope.length) / 2)
+    const suffix = _scopeMaxLen - this._scope.length - prefix
+    const blank = '                                               '
+    const scope = `${blank.substring(0, prefix)}${this._scope}${blank.substring(0, suffix)}`
+    const prefixs = [`[${time}]${acc}[${scope}]`]
     return prefixs.concat(args)
   }
 

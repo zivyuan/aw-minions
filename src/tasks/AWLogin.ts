@@ -36,7 +36,7 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
       const avatar = await page.$('.css-1i7t220 .chakra-avatar')
       if (avatar) {
         sleep(1)
-        logger.log('AW login success ')
+        logger.log('Ahhhh~~, hahahahaha~~~, I\'m in I\'m in ...')
         this.complete(TaskState.Completed)
         return
       }

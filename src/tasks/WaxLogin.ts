@@ -8,8 +8,7 @@ import DingBot from "../DingBot"
 
 export interface IWaxLoginResult {
   account: string
-  username: string
-  tlm: number
+  balance: number
 }
 
 // const STEP_CHECK_COOKIE_CACHE = 'check_cookie_cache'
@@ -94,9 +93,13 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     const btn_submit = '.button-container button'
     const txt_error = '.button-container .error-container-login'
 
-    const { username, password } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    const { account, username, password } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
 
-    logger.log(`Login with ${username}...`)
+    if (!username || !password) {
+      logger.log(`Login with ..., ah! You bastard!`)
+    } else {
+      logger.log(`Login with ${username}...`)
+    }
 
     let limitDelay = 0
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
@@ -136,9 +139,15 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       delay: 16,
     });
     sleep(2)
-    await page.click(btn_submit, {
-      delay: 88
-    })
+
+    if (username && password) {
+      await page.click(btn_submit, {
+        delay: 88
+      })
+    } else {
+      logger.log('Masterrrrrr, give me the PASSWORD plz, I need work ...')
+      DingBot.getInstance().text(`[${account}] Please login to Wax Wallet ...`)
+    }
 
     let errorCheckTimer = 0
     let prevError = ''
@@ -170,13 +179,6 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
           prevError = msg
           DingBot.getInstance().text(`Login error with username: ${username}! Please fix this manual. \n ${msg}`)
         }
-        // this.completeWithError(errorMsg.join('\n'))
-      // } else {
-      //   const elapse = this.phaseElapseTime
-      //   if (elapse > config.taskPhaseTimeout) {
-      //     this.completeWithError('Task overtime!')
-      //     return
-      //   }
       }
       errorCheckTimer = setTimeout(() => {
         checkLoginError()
@@ -190,14 +192,17 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     logger.log('Save cookie ...')
     await page.waitForSelector('.profile .avatar')
 
-    const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    await saveCookie(username, URL_WAX_DOMAIN, page)
+    const { account, username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    await saveCookie(account, URL_WAX_DOMAIN, page)
 
-    logger.log('Wax login success.')
+    if (username) {
+      logger.log(`Love u dady, ahhhahahah~~~~~, work work`)
+    } else {
+      logger.log('Wax login success.')
+    }
     this.complete(TaskState.Completed, '', {
-      username: username,
-      account: '',
-      tlm: 0
+      account,
+      balance: 0
     })
 
   }
