@@ -68,7 +68,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       ...config.browserOption,
       devtools: argv.dev
     }
-    let browser = null;
+    let browser: Browser = null;
     if (argv.endpoint) {
       if (/^ws:\/\//.test(argv.endpoint)) {
         option.browserWSEndpoint = argv.endpoint
@@ -83,6 +83,9 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       }
       browser = await puppeteer.launch(option);
     }
+
+    const pages = await browser.pages()
+    await pages[0].evaluate(`document.title = '${argv.account[0].trim()}'`)
 
     resolve(browser)
   }

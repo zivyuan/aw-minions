@@ -217,7 +217,8 @@ export default class Minion implements IMiningDataProvider {
             }
             //
             const url = await p.evaluate(`document.location.href`)
-            if (url === 'about:blank') {
+            const title = await p.title()
+            if (url === 'about:blank' && title === '') {
               blankPages.push(p)
             }
           }
