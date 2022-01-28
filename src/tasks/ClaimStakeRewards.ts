@@ -21,6 +21,13 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
   private async stepClaim() {
     logger.log('Search for claiming ...')
     const page = await this.provider.getPage(PAGE_FILTER_WAX, URL_WAX_WALLET_STAKING)
+    const url = await page.evaluate(`document.location.href`)
+    if (url.indexOf(URL_WAX_WALLET_STAKING) > -1) {
+      await page.reload()
+    } else {
+      await page.goto(URL_WAX_WALLET_STAKING)
+    }
+
     const selBtnStaking = '.stake-card:nth-child(2) .button-tertiary'
     const selNavBtnStaking = '.navbar-left button:nth-child(4)'
     const selStakedWAXP = '.stake-card:nth-child(1) .__react_component_tooltip+div'
@@ -42,7 +49,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     let awakeTime = new Date().getTime() + 24 * 60 * 60 * 1000
     if (claimAmount === 0) {
       // Nothing to do
-      logger.log('No rewards found.')
+      logger.log('No rewards found. You should stake some WAXP.')
       logger.log('Sigh~~~~(Head down, slowly walk away...)')
       awakeTime = new Date().getTime() + 60 * 60 * 1000
 
@@ -52,7 +59,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
           .map((item, idx) => parseInt(item) * ([3600, 60, 1][idx]))
           .reduce((a, b) => a + b) * 1000
       awakeTime = new Date().getTime() + countDown + 30000
-      logger.log(`Rewards: ${claimAmount} WAXP, Next cliam time: ${moment(awakeTime).format('HH:mm:ss')}`)
+      logger.log(`Rewards not ready, claim will be available at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
       logger.log('Sigh~~, 1, 2, 3, 40, 500, 6000 ... AH~~~~~~~~~~~~')
 
     } else {
@@ -60,10 +67,10 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       await btns[2].click()
 
       balance += claimAmount
-      logger.log(`${claimAmount} WAXP claimed, current total: ${balance} WAXP`)
-      logger.log(`Next claim after next 24 hours.`)
-      logger.log('Ahahahah~~~~~~~, banana banana banana banana ')
       awakeTime += 30000
+      logger.log(`${claimAmount} WAXP claimed, current total: ${balance} WAXP`)
+      logger.log(`Next claim is after 24 hours at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
+      logger.log('Ahahahah~~~~~~~, banana banana banana banana ')
 
     }
 
@@ -72,8 +79,5 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       balance: balance,
       staked: staked
     }, awakeTime)
-
-    await page.reload()
-
   }
 }

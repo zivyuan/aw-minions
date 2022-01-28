@@ -64,7 +64,7 @@ export interface ITask<T> {
 
 export type TaskClass = typeof BaseTask & { meta: { [prop: string]: any } }
 
-let __uuid = 0
+let __uuid = 1
 const logger = new Logger()
 export default class BaseTask<T> implements ITask<T> {
   private __no: number
@@ -89,7 +89,7 @@ export default class BaseTask<T> implements ITask<T> {
   constructor(name: string) {
     this._name = name
     this._phaseTimeMark = new Date().getTime()
-    this.__no = (__uuid++)
+    this.__no = __uuid++
 
     logger.setScope(name)
   }

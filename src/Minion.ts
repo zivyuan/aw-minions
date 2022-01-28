@@ -162,10 +162,7 @@ export default class Minion implements IMiningDataProvider {
             }
           }
 
-          this._pollingIndex += polling
-          if (this._pollingIndex >= this._taskPool.length) {
-            this._pollingIndex = 0
-          }
+          this._pollingIndex = (this._pollingIndex + polling) % this._taskPool.length
 
           this._state = MiningState.Idle
           this._currentTask.destroy()
