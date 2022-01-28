@@ -36,12 +36,18 @@ export interface IMiningDataProvider {
   /**
    * Get a page with condition
    *
-   * @param query      A query string maybe a title, url or special method
-   *                   string and regexp used to compare with page title or url
-   * @param queryUrl   Set ture to compare query value with page url
+   * @param query       Condition to find page
+   *                      - string    search page title or url with excatly
+   *                      - regexp    RegExp expression
+   *                      - function  custom defined compare mode
+   *                    string and regexp used to compare with page title or url
+   * @param urlOrWait   Value to determin what to do if no page found.
+   *                      - string  a valid url string will get a new page with this url
+   *                      - true    continue search until query matched
+   *                      - other   create new blank page
    * @returns Promise<Page>
    */
-  getPage(title: string | RegExp | PageQueryFunc, newUrl?: string | boolean, queryUrl?: boolean): Promise<Page>
+  getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page>
 
   getData<T>(key: string): T
 }
@@ -111,7 +117,6 @@ export default class Minion implements IMiningDataProvider {
     const currentTask = this._taskPool[this._pollingIndex]
     if (currentTask.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
       const task: ITask<any> = new (currentTask.Class)()
-      logger.log('Create task: ', task.name, task.no)
       task.setProvider(this)
       task.prepare()
       task.start()
@@ -119,10 +124,10 @@ export default class Minion implements IMiningDataProvider {
           if (rst.awakeTime) {
             currentTask.awakeTime = rst.awakeTime
           }
-          logger.log(`Task [${task.name}] complete with state: ${TaskState[rst.state]}`)
+          logger.log(`Task #${task.no} ${task.name} complete with state: ${TaskState[rst.state]}`)
         })
         .catch(err => {
-          logger.log(`Task [${task.name}] complete with error: ${err}`)
+          logger.log(`Task #${task.no} ${task.name} complete with error: ${err}`)
         })
         .finally(() => {
           let polling = 1
@@ -145,7 +150,7 @@ export default class Minion implements IMiningDataProvider {
         })
       this._currentTask = task
       this._state = MiningState.Busy
-      logger.log(`Task [${task.name}] start.`)
+      logger.log(`Task #${task.no} ${task.name} started.`)
     }
 
     //
@@ -172,29 +177,21 @@ export default class Minion implements IMiningDataProvider {
    * @param queryUrl   Set ture to compare query value with page url
    * @returns Promise<Page>
    */
-  async getPage(query: string | RegExp | PageQueryFunc, newUrl?: string | boolean , queryUrl?: boolean): Promise<Page> {
+  async getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page> {
     return new Promise((resolve) => {
       const searchPage = async () => {
         const pages = await this.browser.pages()
         const blankPages: Page[] = []
         let page: Page
         let queryFunc: PageQueryFunc
-        const getTheString = async (page: Page): Promise<string> => {
-          const str = queryUrl === true
-            ? await page.evaluate(`document.location.href`)
-            : await page.title()
-          return new Promise((resolve) => {
-            resolve(str)
-          })
-        }
-
         if (typeof query === 'function') {
           queryFunc = query
 
         } else if (query instanceof RegExp) {
           queryFunc = async (page: Page): Promise<boolean> => {
-            const tt = await getTheString(page)
-            const rst = (<RegExp>query).test(tt)
+            const title = await page.title()
+            const url = await page.evaluate(`document.location.href`)
+            const rst = (<RegExp>query).test(title) || (<RegExp>query).test(url)
             return new Promise((resolve) => {
               resolve(rst)
             })
@@ -202,8 +199,9 @@ export default class Minion implements IMiningDataProvider {
 
         } else {
           queryFunc = async (page: Page): Promise<boolean> => {
-            const tt = await getTheString(page)
-            const rst = tt.indexOf(String(query)) > -1
+            const title = await page.title()
+            const url = await page.evaluate(`document.location.href`)
+            const rst = (title.indexOf(query) > -1) || (url.indexOf(query) > -1)
             return new Promise((resolve) => {
               resolve(rst)
             })
@@ -223,7 +221,7 @@ export default class Minion implements IMiningDataProvider {
               blankPages.push(p)
             }
           }
-        } catch(err) {
+        } catch (err) {
           setTimeout(() => {
             searchPage()
           }, 500)
@@ -231,22 +229,24 @@ export default class Minion implements IMiningDataProvider {
         }
 
         if (!page) {
-          if (newUrl === false) {
+          if (urlOrWait === true) {
+            // Continue search until find
             setTimeout(() => {
               searchPage()
             }, 500)
             return
+          }
+          urlOrWait = typeof urlOrWait === 'string' ? urlOrWait : ''
+
+          if (blankPages.length) {
+            page = blankPages.shift()
           } else {
-            if (blankPages.length) {
-              page = blankPages.shift()
-            } else {
-              page = await this.browser.newPage()
-            }
-            page.setDefaultTimeout(0)
-            page.setDefaultNavigationTimeout(0)
-            if (typeof newUrl === 'string') {
-              await page.goto(newUrl)
-            }
+            page = await this.browser.newPage()
+          }
+          page.setDefaultTimeout(0)
+          page.setDefaultNavigationTimeout(0)
+          if (urlOrWait.length) {
+            await page.goto(urlOrWait)
           }
         }
 
@@ -266,7 +266,7 @@ export default class Minion implements IMiningDataProvider {
   getData<T>(key: string): T {
     key = this.uniformKey(key)
     const data = JSON.parse(JSON.stringify(this._data[key]))
-    return <T>(data  || {})
+    return <T>(data || {})
   }
 
   setData(key: string, data: any): void {

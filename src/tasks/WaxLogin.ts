@@ -34,9 +34,9 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   }
 
   private async stepRestoreCookie() {
+    logger.log('Restore cookie...')
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     const { username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    logger.log('Restore cookie...')
     await restoreCookie(username, URL_WAX_DOMAIN, page)
     sleep(1)
 
@@ -188,8 +188,8 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   }
 
   private async stepSaveCookie() {
-    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     logger.log('Save cookie ...')
+    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     await page.waitForSelector('.profile .avatar')
 
     const { account, username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
