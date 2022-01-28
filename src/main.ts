@@ -86,6 +86,18 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     }
 
     const pages = await browser.pages()
+    // Remove all tabs created in preview sessiono
+    if (argv.endpoint) {
+      // In windows and linux system, the last tab closed means the whole application
+      // should be closed, so create empty tab first.
+      const lastPage = await browser.newPage()
+      while(pages.length) {
+        const page = pages.shift()
+        await page.close()
+      }
+      pages.push(lastPage)
+    }
+
     await pages[0].evaluate(`document.title = '${argv.account[0].trim()}'`)
 
     resolve(browser)

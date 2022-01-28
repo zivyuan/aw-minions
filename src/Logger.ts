@@ -20,7 +20,7 @@ export default class Logger {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private prefix(args: any[]): any[] {
-    const time = moment().format('HH:mm:SS')
+    const time = moment().format('HH:mm:ss')
     const acc = Logger.account ? `[${Logger.account}]` : ''
     const prefix = Math.ceil((_scopeMaxLen - this._scope.length) / 2)
     const suffix = _scopeMaxLen - this._scope.length - prefix

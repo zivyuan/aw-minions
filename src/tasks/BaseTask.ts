@@ -89,7 +89,7 @@ export default class BaseTask<T> implements ITask<T> {
   constructor(name: string) {
     this._name = name
     this._phaseTimeMark = new Date().getTime()
-    this.__no = __uuid++
+    this.__no = (__uuid++)
 
     logger.setScope(name)
   }
@@ -194,7 +194,6 @@ export default class BaseTask<T> implements ITask<T> {
     this._phaseTimeMark = new Date().getTime()
     this._phase = phase
   }
-
 
   protected completeWithError(message) {
     this._state = TaskState.Error

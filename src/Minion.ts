@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import moment from "moment";
 import { Browser, Page } from "puppeteer";
 import config from "./config";
 import Logger from "./Logger";
@@ -30,7 +31,8 @@ interface TaskObject {
   Class: any
   // Set 0 to make task always running
   life: number
-  awakeTime: number
+  awakeTime: number,
+  awakeTimeStr?: string
 }
 
 export interface IMiningDataProvider {
@@ -122,16 +124,28 @@ export default class Minion implements IMiningDataProvider {
     }
 
     const ts = new Date().getTime()
-    const currentTask = this._taskPool[this._pollingIndex]
-    if (currentTask.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
-      const task: ITask<any> = new (currentTask.Class)()
+    const total = this._taskPool.length
+    let pickedTask = null
+
+    for (let i = 0; i< total; i ++){
+      const idx = (this._pollingIndex + i) % total
+      const task = this._taskPool[idx]
+      if (task.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
+        pickedTask = task
+        break;
+      }
+    }
+
+    if (pickedTask) {
+      const task: ITask<any> = new (pickedTask.Class)()
       logger.log(`Task #${task.no} ${task.name} started.`)
       task.setProvider(this)
       task.prepare()
       task.start()
         .then((rst: ITaskResult<any>) => {
           if (rst.awakeTime) {
-            currentTask.awakeTime = rst.awakeTime
+            pickedTask.awakeTime = rst.awakeTime
+            pickedTask.awakeTimeStr = moment(rst.awakeTime).format('YYYY-MM-DD HH:mm:ss')
           }
           logger.log(`Task #${task.no} ${task.name} complete with state: ${TaskState[rst.state]}`)
         })
@@ -140,9 +154,9 @@ export default class Minion implements IMiningDataProvider {
         })
         .finally(() => {
           let polling = 1
-          if (currentTask.life > 0) {
-            currentTask.life = currentTask.life - 1
-            if (currentTask.life === 0) {
+          if (pickedTask.life > 0) {
+            pickedTask.life = pickedTask.life - 1
+            if (pickedTask.life === 0) {
               this._taskPool.splice(this._pollingIndex, 1)
               polling = 0
             }

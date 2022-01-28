@@ -44,7 +44,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   }
 
   private async stepAutoLogin() {
-
+    let waitlogmark = 0
     const determinNextStep = async () => {
       let btn_submit = null
       let avatar = null
@@ -64,7 +64,11 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       } else if (avatar) {
         this.nextStep(STEP_SAVE_COOKIE)
       } else {
-        logger.log('Waiting for auto login...')
+        const tmark = new Date().getTime()
+        if (waitlogmark < tmark) {
+          logger.log('Waiting for auto login...')
+          waitlogmark = tmark + 10 * 1000
+        }
         setTimeout(() => {
           determinNextStep()
         }, 1000)
