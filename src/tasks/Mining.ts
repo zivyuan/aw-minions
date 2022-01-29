@@ -103,12 +103,18 @@ export default class Mining extends BaseTask<IMiningResult> {
     logger.log('Waiting approve...')
     const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
 
-    await approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60  * 1000})
-    await approvePage.click(CLS_BTN_APPROVE, {
-      delay: 500 + random(2000)
-    })
-
-    this.nextStep(STEP_CONFIRM)
+    approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 2 * 60 * 1000 })
+      .then(async () => {
+        await approvePage.click(CLS_BTN_APPROVE, {
+          delay: 500 + random(2000)
+        })
+        this.nextStep(STEP_CONFIRM)
+      })
+      .catch(async () => {
+        logger.log('Claim timeout, retry...')
+        await approvePage.close()
+        this.nextStep(STEP_CLAIM)
+      })
   }
 
   private async stepConfirm() {
