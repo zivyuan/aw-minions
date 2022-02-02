@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import moment from "moment";
+import fs from 'fs';
 import { Browser, Page } from "puppeteer";
 import config from "./config";
 import Logger from "./Logger";
 import { ITask, ITaskResult, TaskState } from "./tasks/BaseTask";
-import { DATA_ACCOUNT_INFO } from "./utils/constant";
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IMinionData, TaskObject } from "./types";
 import { randomUserAgent } from "./utils/useragent";
 
 export interface IMinionReports {
@@ -20,20 +21,6 @@ export enum MiningState {
 }
 
 type PageQueryFunc = (page: Page) => Promise<boolean>
-
-export interface AccountInfo {
-  account: string
-  username: string
-  password: string
-}
-
-interface TaskObject {
-  Class: any
-  // Set 0 to make task always running
-  life: number
-  awakeTime: number,
-  awakeTimeStr?: string
-}
 
 export interface IMiningDataProvider {
   /**
@@ -53,6 +40,12 @@ export interface IMiningDataProvider {
   getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page>
 
   getData<T>(key: string): T
+
+  setData(key: string, data: any, save?: boolean): void
+
+  loadData(): void
+
+  saveData(): void
 }
 
 
@@ -64,16 +57,36 @@ export default class Minion implements IMiningDataProvider {
   private _state: MiningState = MiningState.Idle
   private _pollingId = 0
   private _currentTask: ITask<any> = null
-  private _data: { [prop: string]: any } = {}
+  private _data: IMinionData
   private _userAgent: string
+  private accountInfo: IAccountInfo
 
   constructor(account: string, username?: string, password?: string) {
+    this._data = {
+      [DATA_KEY_COOKIE]: [],
+      [DATA_KEY_ACCOUNT_INFO]: {
+        account: '',
+        username: '',
+        password: '',
+      },
+      [DATA_KEY_MINING]: {
+        total: 0,
+        rewards: 0,
+        stakeTotal: 0,
+        stakeRewardTotal: 0,
+        stakeRewardLast: 0,
+      }
+    }
+    //
     const info = {
       account: String(account).trim(),
       username: String(username || '').trim(),
       password: String(password || '').trim(),
     }
-    this.setData(DATA_ACCOUNT_INFO, info)
+    this.accountInfo = info
+
+    this.loadData()
+    this.setData(DATA_KEY_ACCOUNT_INFO, info)
 
     this._userAgent = randomUserAgent()
 
@@ -127,7 +140,7 @@ export default class Minion implements IMiningDataProvider {
     const total = this._taskPool.length
     let pickedTask = null
 
-    for (let i = 0; i< total; i ++){
+    for (let i = 0; i < total; i++) {
       const idx = (this._pollingIndex + i) % total
       const task = this._taskPool[idx]
       if (task.awakeTime < ts && this._state === MiningState.Idle && this._currentTask === null) {
@@ -286,14 +299,56 @@ export default class Minion implements IMiningDataProvider {
   }
 
   getData<T>(key: string): T {
+    let data = null
     key = this.uniformKey(key)
-    const data = JSON.parse(JSON.stringify(this._data[key]))
-    return <T>(data || {})
+    if (this._data[key]) {
+      data = JSON.parse(JSON.stringify(this._data[key]))
+    }
+    return <T>data
   }
 
-  setData(key: string, data: any): void {
+  setData(key: string, data: any, save = false): void {
     key = this.uniformKey(key)
     data = JSON.parse(JSON.stringify(data))
     this._data[key] = data
+
+    if (save) {
+      this.saveData()
+    }
+  }
+
+  /**
+   * Load saved data from disk cache
+   */
+  loadData(): void {
+    const dataFile = this.getCacheFile()
+    let theData
+    if (fs.existsSync(dataFile)) {
+      const content = fs.readFileSync(dataFile).toString().trim()
+      try {
+        theData = JSON.parse(content)
+        // eslint-disable-next-line no-empty
+      } catch (err) { }
+    }
+    this._data = Object.assign({}, this._data, theData)
+  }
+  /**
+   * Save data to disk
+   */
+  saveData(): void {
+    const dataFile = this.getCacheFile()
+    const path = dataFile.replace(/[\w.-]+\.json$/, '')
+
+    if (!fs.existsSync(path)) {
+      fs.mkdirSync(path, {
+        recursive: true
+      })
+    }
+
+    fs.writeFileSync(dataFile, JSON.stringify(this._data, null, 2))
+  }
+
+  private getCacheFile(): string {
+    return `./cache/${this.accountInfo.account}.json`
   }
 }

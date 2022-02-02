@@ -1,10 +1,9 @@
 import { sleep } from "sleep"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
-import { restoreCookie, saveCookie } from "../utils/cookie"
-import { AccountInfo } from "../Minion"
-import { DATA_ACCOUNT_INFO, PAGE_FILTER_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
+import { PAGE_FILTER_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
 import DingBot from "../DingBot"
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, IAccountInfo } from "../types"
 
 export interface IWaxLoginResult {
   account: string
@@ -16,8 +15,6 @@ const STEP_RESTORE_COOKIE = 'restore_cookie'
 const STEP_AUTO_LOGIN = 'auto_login'
 const STEP_LOGIN = 'login'
 const STEP_SAVE_COOKIE = 'save_cookie'
-
-const URL_WAX_DOMAIN = "all-access.wax.io"
 
 const logger = new Logger()
 export class WaxLogin extends BaseTask<IWaxLoginResult> {
@@ -36,15 +33,19 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   private async stepRestoreCookie() {
     logger.log('Restore cookie...')
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-    const { account } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    await restoreCookie(account, URL_WAX_DOMAIN, page)
-    sleep(1)
+    const cookie = this.provider.getData<[]>(DATA_KEY_COOKIE)
+
+    if (cookie && cookie.length) {
+      await page.setCookie(...cookie)
+      sleep(1)
+    }
 
     this.nextStep(STEP_AUTO_LOGIN)
   }
 
   private async stepAutoLogin() {
     let waitlogmark = 0
+    let determinNextStepMark = 0
     const determinNextStep = async () => {
       let btn_submit = null
       let avatar = null
@@ -69,7 +70,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
           logger.log('Waiting for auto login...')
           waitlogmark = tmark + 10 * 1000
         }
-        setTimeout(() => {
+        determinNextStepMark = setTimeout(() => {
           determinNextStep()
         }, 1000)
       }
@@ -83,7 +84,8 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       })
       .catch(err => {
         logger.log('Page load error:', err)
-        setTimeout(() => {
+        clearTimeout(determinNextStepMark)
+        determinNextStepMark = setTimeout(() => {
           this.stepAutoLogin()
         }, 1000)
       })
@@ -97,7 +99,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     const btn_submit = '.button-container button'
     const txt_error = '.button-container .error-container-login'
 
-    const { account, username, password } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
+    const { account, username, password } = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
 
     if (!username || !password) {
       logger.log(`Login with ..., ah! You bastard!`)
@@ -196,8 +198,9 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
     await page.waitForSelector('.profile .avatar')
 
-    const { account, username } = this.provider.getData<AccountInfo>(DATA_ACCOUNT_INFO)
-    await saveCookie(account, URL_WAX_DOMAIN, page)
+    const { account, username } = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
+    const cookies = await page.cookies()
+    this.provider.setData(DATA_KEY_COOKIE, cookies, true)
 
     if (username) {
       logger.log(`Love u dady, ahhhahahah~~~~~, work work`)

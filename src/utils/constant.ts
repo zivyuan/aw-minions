@@ -7,6 +7,3 @@ export const URL_WAX_WALLET_LOGIN = 'https://all-access.wax.io/'
 export const URL_WAX_WALLET_DASHBOOARD = 'https://wallet.wax.io/dashboard'
 export const URL_WAX_WALLET_STAKING = 'https://wallet.wax.io/staking-rewards'
 export const URL_ALIEN_WORLDS_APPROVE = 'https://all-access.wax.io/cloud-wallet/signing/'
-
-export const DATA_ACCOUNT_INFO = '__minion_account_info'
-export const DATA_COOKIES = '__cookies'

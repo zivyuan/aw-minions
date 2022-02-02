@@ -134,13 +134,13 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     if (btnMine) {
       outOfCPU = true
-      awakeTime = new Date().getTime() + 30 * 60 * 1000 + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
+      awakeTime = new Date().getTime() + 30 * 60 * 1000
     } else {
       const countDown = await page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
       const seconds = countDown.split(':')
         .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
         .reduce((a, b) => a + b) * 1000
-      awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 4 * 60 * 1000) + 600000)
+      awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 2.5 * 60 * 1000))
     }
 
     const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)

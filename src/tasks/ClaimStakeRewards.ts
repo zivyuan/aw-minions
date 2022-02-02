@@ -106,5 +106,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       balance: balance,
       staked: staked
     }, awakeTime)
+
+    page.reload()
   }
 }
