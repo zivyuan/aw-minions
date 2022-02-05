@@ -6,7 +6,7 @@ import { Browser, Page } from "puppeteer";
 import config from "./config";
 import Logger from "./Logger";
 import { ITask, ITaskResult, TaskState } from "./tasks/BaseTask";
-import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IMinionData, TaskObject } from "./types";
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_BROWSER, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IBrowserConfig, IMinionData, TaskObject } from "./types";
 import { randomUserAgent } from "./utils/useragent";
 
 export interface IMinionReports {
@@ -39,7 +39,7 @@ export interface IMiningDataProvider {
    */
   getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page>
 
-  getData<T>(key: string): T
+  getData<T>(key: string, def?: any): T
 
   setData(key: string, data: any, save?: boolean): void
 
@@ -87,8 +87,15 @@ export default class Minion implements IMiningDataProvider {
 
     this.loadData()
     this.setData(DATA_KEY_ACCOUNT_INFO, info)
-
-    this._userAgent = randomUserAgent()
+    const browserInfo = this.getData<IBrowserConfig>(DATA_KEY_BROWSER)
+    if ( browserInfo.userAgent ) {
+      this._userAgent = browserInfo.userAgent
+    } {
+      this._userAgent = randomUserAgent()
+      browserInfo.userAgent = this._userAgent
+      this.setData(DATA_KEY_BROWSER, browserInfo)
+      this.saveData()
+    }
 
     logger.setScope('Minion')
     logger.log('use useragent: ', this._userAgent)
@@ -298,13 +305,13 @@ export default class Minion implements IMiningDataProvider {
     return key.replace(/[^\w]+/g, '_')
   }
 
-  getData<T>(key: string): T {
+  getData<T>(key: string, def = {}): T {
     let data = null
     key = this.uniformKey(key)
     if (this._data[key]) {
       data = JSON.parse(JSON.stringify(this._data[key]))
     }
-    return <T>data
+    return <T>(data || def)
   }
 
   setData(key: string, data: any, save = false): void {

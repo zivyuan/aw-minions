@@ -1,7 +1,11 @@
-
+export const DATA_KEY_BROWSER = 'BROWSER'
 export const DATA_KEY_COOKIE = 'cookies'
 export const DATA_KEY_ACCOUNT_INFO = 'account'
 export const DATA_KEY_MINING = 'mining'
+
+export interface IBrowserConfig {
+  userAgent: string
+}
 
 export interface IAccountInfo {
   account: string
