@@ -4,6 +4,7 @@ import { PAGE_FILTER_SIGN, PAGE_FILTER_WAX, URL_WAX_WALLET_STAKING } from "../ut
 import BaseTask, { TaskState } from "./BaseTask";
 import { sleep } from 'sleep'
 import { random } from "../utils/utils";
+import { DATA_KEY_MINING, IMiningData } from "../types";
 
 const CLS_BTN_APPROVE = '.authorize-transaction-container .react-ripples button'
 export interface IStackRewardsResult {
@@ -69,7 +70,6 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     if (claimAmount === 0) {
       // Nothing to do
       logger.log('No rewards found. You should stake some WAXP.')
-      logger.log('Sigh~~~~(Head down, slowly walk away...)')
       awakeTime = new Date().getTime() + 60 * 60 * 1000
 
     } else if (count.test(btnLabels[2].trim())) {
@@ -79,16 +79,14 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
         .reduce((a, b) => a + b) * 1000
       awakeTime = new Date().getTime() + countDown + 30000
       logger.log(`Rewards not ready, claim will be available at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
-      logger.log('Sigh~~, 1, 2, 3, 40, 500, 6000 ... AH~~~~~~~~~~~~')
 
     } else {
       // claim button
       await btns[2].click()
-
       logger.log('Approve claim...')
       const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
 
-      await approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60  * 1000})
+      await approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60 * 1000 })
       await approvePage.click(CLS_BTN_APPROVE, {
         delay: 500 + random(2000)
       })
@@ -98,8 +96,6 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       awakeTime += 30000
       logger.log(`${claimAmount} WAXP claimed, current total: ${balance} WAXP`)
       logger.log(`Next claim is after 24 hours at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
-      logger.log('Ahahahah~~~~~~~, banana banana banana banana ')
-
     }
 
     this.complete(TaskState.Completed, '', {
@@ -107,6 +103,11 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       balance: balance,
       staked: staked
     }, awakeTime)
+
+    const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+    conf.stakeTotal = staked
+    this.provider.setData(DATA_KEY_MINING, conf)
+    this.provider.saveData()
 
     page.reload()
   }

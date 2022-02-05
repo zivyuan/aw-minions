@@ -51,6 +51,9 @@ const conf = Object.assign({
   },
   log: {
     timestamp: 'HH:mm:ss'
+  },
+  report: {
+    interval: 8 * 60 * 60 * 1000
   }
 }, customConf)
 

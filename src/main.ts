@@ -11,6 +11,7 @@ import Minion from './Minion'
 import Mining from './tasks/Mining'
 import AWLogin from './tasks/AWLogin'
 import ClaimStakeRewards from './tasks/ClaimStakeRewards'
+import Report from './tasks/Report'
 
 interface IBotArguments {
   /**
@@ -58,8 +59,8 @@ DingBot.getInstance(config.dingding)
 
 const getProxy = (proxy): string => {
   return proxy === true
-  ? `${config.proxy.host}:${config.proxy.port}`
-  : proxy
+    ? `${config.proxy.host}:${config.proxy.port}`
+    : proxy
 }
 
 const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
@@ -91,7 +92,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       // In windows and linux system, the last tab closed means the whole application
       // should be closed, so create empty tab first.
       const lastPage = await browser.newPage()
-      while(pages.length) {
+      while (pages.length) {
         const page = pages.shift()
         await page.close()
       }
@@ -166,7 +167,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   //
   if (argv.endpoint) {
     const pages = await browser.pages()
-    while(pages.length > 1) {
+    while (pages.length > 1) {
       const page = pages.shift()
       await page.close()
     }
@@ -178,6 +179,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   minion.addTask(AWLogin, 1)
   minion.addTask(Mining)
   minion.addTask(ClaimStakeRewards)
+  minion.addTask(Report)
   minion.start()
 })();
 

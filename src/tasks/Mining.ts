@@ -4,6 +4,7 @@ import { sleep } from 'sleep'
 import Logger from "../Logger";
 import { PAGE_FILTER_SIGN } from "../utils/constant";
 import moment from "moment";
+import { DATA_KEY_MINING, IMiningData } from "../types";
 
 const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
@@ -154,16 +155,19 @@ export default class Mining extends BaseTask<IMiningResult> {
       reward,
     }
 
+    const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
     if (outOfCPU) {
-      logger.log('Ahhhhhhh~~hhh~~~~~~~~~, bana~~~nnnnana~~')
       logger.log(`Mining reward:  0 TLM, current total: ${total} TLM.`)
-      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
       this.complete(TaskState.Abort, 'Out of CPU.', result, awakeTime)
     } else {
-      logger.log(`${reward} trilium! La~~~lala~~~~~~~, ba~~~~nnnnnnana~~`)
       logger.log(`Mining reward: ${reward} TLM, current total: ${total} TLM.`)
-      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm')} almost.`)
+      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
       this.complete(TaskState.Completed, 'Success', result, awakeTime)
     }
+
+    conf.total = total
+    this.provider.setData(DATA_KEY_MINING, conf)
+    this.provider.saveData()
   }
 }

@@ -62,5 +62,7 @@ export interface IMinionData {
 
 export interface IReportConfig {
   // Report interval defined in seconds
-  interval: number,
+  interval: number
+  // Last report timestamp
+  nextReportTime: number
 }
