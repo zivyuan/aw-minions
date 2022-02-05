@@ -7,9 +7,9 @@ A mining bot for Alien Worlds, was created for research purposes only, the devel
 ## TODO
 
 - [ ] Resolve email 2FA validation
-- [ ] Intelligent next mint attempt
+- [x] Intelligent next mint attempt
   - [x] Dynamic delay detect
-  - [ ] CPU resource best guess
+  - [x] CPU resource best guess
 - [ ] Multi account surpport, mining at same time
 - [x] Tasking schedule
 - [ ] Task types

@@ -27,6 +27,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
 
     logger.log('Search for claiming ...')
     const page = await this.provider.getPage(PAGE_FILTER_WAX, URL_WAX_WALLET_STAKING)
+    await page.bringToFront()
     const url = await page.evaluate(`document.location.href`)
 
     if (url.indexOf(URL_WAX_WALLET_STAKING) > -1) {

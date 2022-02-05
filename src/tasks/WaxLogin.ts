@@ -33,6 +33,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   private async stepRestoreCookie() {
     logger.log('Restore cookie...')
     const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+    await page.bringToFront()
     const cookie = this.provider.getData<[]>(DATA_KEY_COOKIE)
 
     if (cookie && cookie.length) {

@@ -68,6 +68,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepPrepare() {
     const page = await this.provider.getPage(PAGE_TITLE)
+    await page.bringToFront()
     const cls = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
     this._tlm = parseFloat(cls)
     this.nextStep(STEP_MINE)
@@ -76,7 +77,6 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepMine() {
     logger.log('Mining...')
     const page = await this.provider.getPage(PAGE_TITLE)
-
     await page.waitForSelector(CLS_BTN_MINE)
     await page.click(CLS_BTN_MINE, {
       delay: 50 + random(200)
@@ -89,7 +89,6 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepClaim() {
     logger.log('Claiming...')
     const page = await this.provider.getPage(PAGE_TITLE)
-
     await page.waitForSelector(CLS_BTN_CLAIM)
     await page.click(CLS_BTN_CLAIM, {
       delay: 1500 + random(5000)
@@ -102,6 +101,7 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepApprove() {
     logger.log('Waiting approve...')
     const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
+    await approvePage.bringToFront()
 
     approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 2 * 60 * 1000 })
       .then(async () => {
@@ -119,6 +119,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepConfirm() {
     const page = await this.provider.getPage(PAGE_TITLE)
+    await page.bringToFront()
     const btnMine = await page.$(CLS_BTN_MINE)
     const txtCoolDown = await page.$(CLS_TXT_COOLDOWN)
 

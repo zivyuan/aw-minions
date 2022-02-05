@@ -285,7 +285,7 @@ export default class Minion implements IMiningDataProvider {
         }
 
         page.setUserAgent(this._userAgent)
-        await page.bringToFront()
+        // await page.bringToFront()
 
         resolve(page)
       }
