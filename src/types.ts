@@ -2,6 +2,7 @@ export const DATA_KEY_BROWSER = 'BROWSER'
 export const DATA_KEY_COOKIE = 'cookies'
 export const DATA_KEY_ACCOUNT_INFO = 'account'
 export const DATA_KEY_MINING = 'mining'
+export const DATA_KEY_REPORT = 'report'
 
 export interface IBrowserConfig {
   userAgent: string
@@ -57,4 +58,9 @@ export interface IMinionData {
   mining: IMiningData
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [task: string]: any
+}
+
+export interface IReportConfig {
+  // Report interval defined in seconds
+  interval: number,
 }

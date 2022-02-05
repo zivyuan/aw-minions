@@ -48,6 +48,9 @@ const conf = Object.assign({
   minion: {
     // Delays between two task, default 30 second
     taskInterval: 30
+  },
+  log: {
+    timestamp: 'HH:mm:ss'
   }
 }, customConf)
 

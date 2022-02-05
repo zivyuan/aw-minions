@@ -1,4 +1,5 @@
 import moment from "moment"
+import config from "./config"
 
 
 let _scopeMaxLen = 10
@@ -20,7 +21,8 @@ export default class Logger {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private prefix(args: any[]): any[] {
-    const time = moment().format('HH:mm:ss')
+    const conf = config.log
+    const time = moment().format(conf.timestamp)
     const acc = Logger.account ? `[${Logger.account}]` : ''
     const prefix = Math.ceil((_scopeMaxLen - this._scope.length) / 2)
     const suffix = _scopeMaxLen - this._scope.length - prefix
