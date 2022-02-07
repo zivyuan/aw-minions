@@ -5,6 +5,8 @@ import Logger from "../Logger";
 import { PAGE_FILTER_SIGN } from "../utils/constant";
 import moment from "moment";
 import { DATA_KEY_MINING, IMiningData } from "../types";
+import config from "../config";
+import { IMiningDataProvider } from "../Minion";
 
 const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
@@ -55,6 +57,13 @@ export interface IMiningResult {
 const PAGE_TITLE = 'Alien Worlds'
 
 export default class Mining extends BaseTask<IMiningResult> {
+
+  static initial(provider: IMiningDataProvider) {
+    const data = provider.getData<IMiningData>(DATA_KEY_MINING)
+    data.counter = 0
+    provider.setData(DATA_KEY_MINING, data)
+  }
+
   private _tlm = 0
 
   constructor() {
@@ -76,7 +85,8 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private async stepMine() {
-    logger.log('Mining...')
+    const data = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+    logger.log(`Start [${data.counter + 1}] mining ...`)
     const page = await this.provider.getPage(PAGE_TITLE)
     await page.waitForSelector(CLS_BTN_MINE)
     await page.click(CLS_BTN_MINE, {
@@ -100,7 +110,7 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private async stepApprove() {
-    logger.log('Waiting approve...')
+    logger.log('Aapproving...')
     const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
     await approvePage.bringToFront()
 
@@ -109,6 +119,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         await approvePage.click(CLS_BTN_APPROVE, {
           delay: 500 + random(2000)
         })
+        logger.log('Waiting mining state...')
         this.nextStep(STEP_CONFIRM)
       })
       .catch(async () => {
@@ -123,6 +134,7 @@ export default class Mining extends BaseTask<IMiningResult> {
     await page.bringToFront()
     const btnMine = await page.$(CLS_BTN_MINE)
     const txtCoolDown = await page.$(CLS_TXT_COOLDOWN)
+    const  { awakeDelay, outOfResourceDelay } = config.mining
 
     if (!btnMine && !txtCoolDown) {
       this.tick(STEP_CONFIRM)
@@ -136,18 +148,20 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     if (btnMine) {
       outOfCPU = true
-      awakeTime = new Date().getTime() + 30 * 60 * 1000
+      awakeTime = new Date().getTime() + outOfResourceDelay * 1000
     } else {
       const countDown = await page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
       const seconds = countDown.split(':')
         .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
         .reduce((a, b) => a + b) * 1000
-      awakeTime = new Date().getTime() + seconds + (Math.floor(Math.random() * 2.5 * 60 * 1000))
+      awakeTime = new Date().getTime() + seconds
     }
 
     const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
+    const delay = random(awakeDelay, awakeDelay / 2) * 1000
     total = parseFloat(tlm)
     reward = Math.round((total - this._tlm) * 10000) / 10000
+    awakeTime += delay
 
     const result: IMiningResult = {
       nextAttemptAt: awakeTime,
@@ -157,12 +171,12 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
     if (outOfCPU) {
-      logger.log(`Mining reward:  0 TLM, current total: ${total} TLM.`)
-      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
-      this.complete(TaskState.Abort, 'Out of CPU.', result, awakeTime)
+      logger.log(`Out of CPU/NET, Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
+      this.complete(TaskState.Abort, 'Out of CPU/NET.', result, awakeTime)
     } else {
       logger.log(`Mining reward: ${reward} TLM, current total: ${total} TLM.`)
       logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
+      conf.counter += 1
       this.complete(TaskState.Completed, 'Success', result, awakeTime)
     }
 

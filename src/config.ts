@@ -18,7 +18,7 @@ if (fs.existsSync(confJson)) {
 
 const conf = Object.assign({
   //
-  tickInterval: 200,
+  tickInterval: 500,
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
   browserOption: {
     headless: false,
@@ -38,7 +38,8 @@ const conf = Object.assign({
   },
   mining: {
     // Coll down second when resource low
-    lowResourceCoolDown: 30
+    outOfResourceDelay: 30 * 60,
+    awakeDelay: 30,
   },
   //
   dingding: {

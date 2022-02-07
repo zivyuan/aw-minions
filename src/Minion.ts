@@ -75,6 +75,7 @@ export default class Minion implements IMiningDataProvider {
         stakeTotal: 0,
         stakeRewardTotal: 0,
         stakeRewardLast: 0,
+        counter: 0,
       }
     }
     //
@@ -118,6 +119,9 @@ export default class Minion implements IMiningDataProvider {
       life,
       awakeTime: 0
     })
+    if (typeof task.initial === 'function') {
+      task.initial(this)
+    }
   }
 
   start() {

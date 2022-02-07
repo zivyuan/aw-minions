@@ -61,7 +61,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
       }
 
       if (btn_submit) {
-        logger.log('A~~~h~~~~~~~, I got caught! Wait! I have an ID!!!')
+        logger.log(`Auto login fail, relogin. `)
         this.nextStep(STEP_LOGIN)
       } else if (avatar) {
         this.nextStep(STEP_SAVE_COOKIE)

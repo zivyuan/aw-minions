@@ -1,3 +1,4 @@
+export const DATA_KEY_SESSION_ID = 'session_id'
 export const DATA_KEY_BROWSER = 'BROWSER'
 export const DATA_KEY_COOKIE = 'cookies'
 export const DATA_KEY_ACCOUNT_INFO = 'account'
@@ -44,6 +45,7 @@ export interface IMiningData {
   stakeTotal: number
   stakeRewardTotal: number
   stakeRewardLast: number
+  counter: number
 }
 
 export interface ITaskSavableData {
