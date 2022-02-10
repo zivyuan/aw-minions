@@ -87,10 +87,7 @@ export default class Minion implements IMiningDataProvider {
     this.accountInfo = info
 
     this.loadData()
-    this.setData(DATA_KEY_ACCOUNT_INFO, {
-      ...info,
-      password: ''
-    })
+    this.setData(DATA_KEY_ACCOUNT_INFO, info)
     const browserInfo = this.getData<IBrowserConfig>(DATA_KEY_BROWSER)
     if (browserInfo.userAgent) {
       this._userAgent = browserInfo.userAgent
