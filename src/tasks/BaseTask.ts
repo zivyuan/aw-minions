@@ -186,6 +186,36 @@ export default class BaseTask<T> implements ITask<T> {
     })
   }
 
+  protected waitForSelector(page: Page, selector: string, timeout = 0): Promise<any> {
+    const timemark = new Date().getTime()
+    let __iid = 0
+    const __looper = async (resolve: (value: unknown) => void, reject: (reason?: any) => void, page: Page, selector: string, interval: number) => {
+      clearTimeout(__iid)
+      try {
+        const obj = await page.$(selector)
+        if (obj) {
+          resolve(obj)
+          return
+        }
+        // eslint-disable-next-line no-empty
+      } catch(err) {}
+
+      const elapse = (new Date().getTime()) - timemark
+      if (timeout > 0 && elapse > timeout) {
+        reject('waitforselector timeout')
+        return
+      }
+
+      __iid = setTimeout(() => {
+        __looper(resolve, reject, page, selector, interval)
+      }, interval)
+    }
+
+    return new Promise((resolve, reject) => {
+      __looper(resolve, reject, page, selector, timeout)
+    })
+  }
+
   protected updatePhase(phase: string) {
     if (this._phase === phase) {
       return

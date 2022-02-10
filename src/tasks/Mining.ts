@@ -22,26 +22,6 @@ const STEP_CLAIM = 'claim'
 const STEP_APPROVE = 'approve'
 const STEP_CONFIRM = 'comfirm'
 
-// 挖矿请求接口: https://aw-guard.yeomen.ai/v1/chain/push_transaction
-
-// {
-//   "code": 500,
-//   "message": "Internal Service Error",
-//   "error": {
-//     "code": 3080004,
-//     "name": "tx_cpu_usage_exceeded",
-//     "what": "Transaction exceeded the current CPU usage limit imposed on the transaction",
-//     "details": [
-//       {
-//         "message": "billed CPU time (375 us) is greater than the maximum billable CPU time for the transaction (234 us)",
-//         "file": "transaction_context.cpp",
-//         "line_number": 470,
-//         "method": "validate_account_cpu_usage"
-//       }
-//     ]
-//   }
-// }
-
 
 const logger = new Logger('Mining')
 
@@ -78,7 +58,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepPrepare() {
     const page = await this.provider.getPage(PAGE_TITLE)
-    await page.bringToFront()
+    // await page.bringToFront()
     const cls = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
     this._tlm = parseFloat(cls)
     this.nextStep(STEP_MINE)
@@ -112,7 +92,7 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepApprove() {
     logger.log('Aapproving...')
     const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
-    await approvePage.bringToFront()
+    // await approvePage.bringToFront()
 
     approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 2 * 60 * 1000 })
       .then(async () => {
@@ -130,8 +110,30 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private async stepConfirm() {
+    // TODO: Watch api request response
+    // https://aw-guard.yeomen.ai/v1/chain/push_transaction
+    // Response 500:
+    // ```
+    // {
+    //   "code": 500,
+    //   "message": "Internal Service Error",
+    //   "error": {
+    //     "code": 3080004,
+    //     "name": "tx_cpu_usage_exceeded",
+    //     "what": "Transaction exceeded the current CPU usage limit imposed on the transaction",
+    //     "details": [
+    //       {
+    //         "message": "billed CPU time (903 us) is greater than the maximum billable CPU time for the transaction (0 us)",
+    //         "file": "transaction_context.cpp",
+    //         "line_number": 470,
+    //         "method": "validate_account_cpu_usage"
+    //       }
+    //     ]
+    //   }
+    // }
+    // ```
     const page = await this.provider.getPage(PAGE_TITLE)
-    await page.bringToFront()
+    // await page.bringToFront()
     const btnMine = await page.$(CLS_BTN_MINE)
     const txtCoolDown = await page.$(CLS_TXT_COOLDOWN)
     const  { awakeDelay, outOfResourceDelay } = config.mining

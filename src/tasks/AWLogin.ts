@@ -22,7 +22,7 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
   private async stepLogin() {
     logger.log('Start login, knock knock...')
     const page = await this.provider.getPage(PAGE_TITLE_ALIEN_WORLDS, URL_ALIEN_WORLDS)
-    await page.bringToFront()
+    // await page.bringToFront()
     await page.waitForSelector('.css-yfg7h4 .css-t8p16t')
     await page.click('.css-yfg7h4 .css-t8p16t', {
       delay: 80
