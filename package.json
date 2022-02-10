@@ -24,7 +24,7 @@
     "typescript": "~4.5.3"
   },
   "scripts": {
-    "dev": "nohup node endpoint.js & npm run build:watch",
+    "dev": "npm run build & npm run build:watch",
     "start": "node build/src/main.js",
     "clean": "rimraf coverage build tmp",
     "prebuild": "npm run lint",
