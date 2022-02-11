@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { merge } from 'merge-anything'
 
-const winWid = 800
-const winHei = 450
+const winWid = 1280
+const winHei = 600
 
 const confJson = path.resolve('./minions.json')
 
