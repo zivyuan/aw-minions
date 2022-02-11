@@ -15,6 +15,12 @@ export interface IMinionReports {
   }
 }
 
+interface ILockData {
+  account: string
+  message: string
+  timestamp: number
+}
+
 export enum MiningState {
   Idle,
   Busy
@@ -110,11 +116,18 @@ export default class Minion implements IMiningDataProvider {
     this.browser = browser
   }
 
-  addTask(task: any, life = 0) {
+  /**
+   *
+   * @param task 任务类对象
+   * @param life 任务执行次数, 0 为无限次
+   * @param interactive 是否需要交互
+   */
+  addTask(task: any, life = 0, interactive = true) {
     this._taskPool.push({
       Class: task,
       life,
-      awakeTime: 0
+      awakeTime: 0,
+      interactive
     })
     if (typeof task.initial === 'function') {
       task.initial(this)
@@ -149,7 +162,7 @@ export default class Minion implements IMiningDataProvider {
 
     const ts = new Date().getTime()
     const total = this._taskPool.length
-    let pickedTask = null
+    let pickedTask: TaskObject = null
 
     for (let i = 0; i < total; i++) {
       const idx = (this._pollingIndex + i) % total
@@ -160,7 +173,7 @@ export default class Minion implements IMiningDataProvider {
       }
     }
 
-    if (pickedTask) {
+    if (pickedTask && this._requestWindow(pickedTask)) {
       const task: ITask<any> = new (pickedTask.Class)()
       logger.log(`Task #${task.no} ${task.name} started.`)
       task.setProvider(this)
@@ -192,6 +205,10 @@ export default class Minion implements IMiningDataProvider {
           this._currentTask.destroy()
           this._currentTask = null
           this._nextTaskTimer = new Date().getTime() + config.minion.taskInterval * 1000
+
+          if (pickedTask.interactive) {
+            this._releaseLock()
+          }
         })
       this._currentTask = task
       this._state = MiningState.Busy
@@ -206,6 +223,42 @@ export default class Minion implements IMiningDataProvider {
     this._pollingId = setTimeout(() => {
       this._polling()
     }, 500)
+  }
+
+  private _lockFile = './cache/window-lock'
+  private _createLock(msg = ''): void {
+    const dat: ILockData = {
+      account: this.accountInfo.account,
+      message: msg,
+      timestamp: new Date().getTime()
+    }
+    fs.writeFileSync(this._lockFile, JSON.stringify(dat))
+  }
+
+  private _releaseLock(): void {
+    fs.unlinkSync(this._lockFile)
+  }
+
+  private _requestWindow(task: TaskObject) {
+    let hasLock = fs.existsSync(this._lockFile)
+    if (hasLock) {
+      try {
+        const lockData: ILockData = JSON.parse(fs.readFileSync(this._lockFile).toString())
+        const elapse = (new Date().getTime()) - lockData.timestamp
+        if (elapse > (config.minion.windowLockTimeout * 1000)) {
+          throw new Error('Force release window lock!')
+        }
+      } catch (err) {
+        // Force release lock if lock data is error
+        this._releaseLock()
+        hasLock = false
+      }
+    }
+    if (task.interactive && hasLock) {
+      return false
+    }
+    this._createLock()
+    return true
   }
 
 

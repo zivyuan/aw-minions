@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import { merge } from 'merge-anything'
 
-const winWid = 1280
-const winHei = 840
+const winWid = 800
+const winHei = 450
 
 const confJson = path.resolve('./minions.json')
 
@@ -16,7 +17,8 @@ if (fs.existsSync(confJson)) {
   } catch (err) { }
 }
 
-const conf = Object.assign({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const conf = <any>merge({
   //
   tickInterval: 500,
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
@@ -47,8 +49,10 @@ const conf = Object.assign({
     secret: "",
   },
   minion: {
-    // Delays between two task, default 30 second
-    taskInterval: 30
+    // Delays between two task, default 30 seconds
+    taskInterval: 30,
+    // Window lock timeout, default is 3 minutes
+    windowLockTimeout: 3 * 60,
   },
   log: {
     timestamp: 'HH:mm:ss'

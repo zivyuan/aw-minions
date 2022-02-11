@@ -177,9 +177,9 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   minion.prepare(browser)
   minion.addTask(WaxLogin, 1)
   minion.addTask(AWLogin, 1)
-  minion.addTask(Mining)
-  minion.addTask(ClaimStakeRewards)
-  minion.addTask(Report)
+  minion.addTask(Mining, 0)
+  minion.addTask(ClaimStakeRewards, 0)
+  minion.addTask(Report, 0, false)
   minion.start()
 })();
 

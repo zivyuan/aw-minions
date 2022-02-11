@@ -20,8 +20,9 @@ export interface TaskObject {
   Class: any
   // Set 0 to make task always running
   life: number
-  awakeTime: number,
+  awakeTime: number
   awakeTimeStr?: string
+  interactive: boolean
 }
 
 export interface ICookie {

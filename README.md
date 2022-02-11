@@ -1,8 +1,12 @@
+- [Alien Worlds Minions](#alien-worlds-minions)
+  - [TODO](#todo)
+  - [Install and run](#install-and-run)
+  - [CLI Options](#cli-options)
+
+
 # Alien Worlds Minions
 
----
-A mining bot for Alien Worlds, was created for research purposes only, the developers and contributors take no responsibility for your WAX.io, AlienWorlds and, or other social accounts.
----
+**A mining bot for Alien Worlds, was created for research purposes only, the developers and contributors take no responsibility for your WAX.io, AlienWorlds and, or other social accounts.**
 
 ## TODO
 
@@ -18,7 +22,6 @@ A mining bot for Alien Worlds, was created for research purposes only, the devel
   - [x] Mining
   - [ ] Account status, TLM amount and resouces useage of CPU, NET and RAM
   - [ ] Dingding report. Report mining progress on schedual
-
 
 ## Install and run
 
@@ -37,6 +40,7 @@ More command line options see **CLI Options** section
 ## CLI Options
 
 Command line Options
+
 ```
       --version   Show version
   -u, --username  Username, required. Multi accouts surpported
@@ -47,4 +51,3 @@ Command line Options
                   ie: `--proxy address` or just `--proxy` to use default address
       --help      Show helps
 ```
-
