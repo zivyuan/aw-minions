@@ -7,10 +7,10 @@ const fs = require('fs');
     deviceScaleFactor: 2,
     ignoreDefaultArgs: ['--enable-automation'],
     defaultViewport: null,
-    args: ['--window-size=1280,840', '--unhandled-rejections=strict'],
+    args: ['--window-size=1280,800', '--unhandled-rejections=strict'],
   });
 
   const endPoint = browser.wsEndpoint();
   fs.writeFileSync('.endpoint', endPoint);
-  console.log('end pointy: ', endPoint);
+  console.log('end point: ', endPoint);
 })();
