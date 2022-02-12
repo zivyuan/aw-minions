@@ -236,7 +236,9 @@ export default class Minion implements IMiningDataProvider {
   }
 
   private _releaseLock(): void {
-    fs.unlinkSync(this._lockFile)
+    if (fs.existsSync(this._lockFile)) {
+      fs.unlinkSync(this._lockFile)
+    }
   }
 
   private _requestWindow(task: TaskObject) {
