@@ -1,14 +1,13 @@
 import BaseTask, { TaskState } from "./BaseTask";
-import { random } from "../utils/utils";
-import { sleep } from 'sleep'
+import { getAwakeTime } from "../utils/utils";
 import Logger from "../Logger";
-import { PAGE_FILTER_SIGN } from "../utils/constant";
-import moment from "moment";
-import { DATA_KEY_MINING, IMiningData } from "../types";
-import config from "../config";
+import { PAGE_ALIEN_WORLDS, AW_API_GET_TABLE_ROWS, AW_API_PUSH_TRANSACTION } from "../utils/constant";
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } from "../types";
 import { IMiningDataProvider } from "../Minion";
+import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
+import moment from "moment";
 
-const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
+// const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
 const CLS_BTN_CLAIM = '.css-1i7t220 .css-f33lh6 .css-1knsxs2 .css-t8p16t'
 // const CLS_BTN_COOLDOWN = '.css-1i7t220 .css-f33lh6 .css-2s09f0'
@@ -19,8 +18,15 @@ const CLS_BTN_APPROVE = '.authorize-transaction-container .react-ripples button'
 const STEP_PREPARE = 'prepare'
 const STEP_MINE = 'mine'
 const STEP_CLAIM = 'claim'
-const STEP_APPROVE = 'approve'
 const STEP_CONFIRM = 'comfirm'
+
+enum MiningStage {
+  None,
+  Mine,
+  Claim,
+  Cooldown,
+  Complete,
+}
 
 
 const logger = new Logger('Mining')
@@ -34,8 +40,6 @@ export interface IMiningResult {
   ram?: number
 }
 
-const PAGE_TITLE = 'Alien Worlds'
-
 export default class Mining extends BaseTask<IMiningResult> {
 
   static initial(provider: IMiningDataProvider) {
@@ -44,7 +48,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     provider.setData(DATA_KEY_MINING, data)
   }
 
-  private _tlm = 0
+  private _tlm = -1
+  private _miningStage = MiningStage.None
+  private _account: IAccountInfo
 
   constructor() {
     super('Mining')
@@ -52,138 +58,255 @@ export default class Mining extends BaseTask<IMiningResult> {
     this.registerStep(STEP_PREPARE, this.stepPrepare, true)
     this.registerStep(STEP_MINE, this.stepMine)
     this.registerStep(STEP_CLAIM, this.stepClaim)
-    this.registerStep(STEP_APPROVE, this.stepApprove)
     this.registerStep(STEP_CONFIRM, this.stepConfirm)
   }
 
+  private async getCurrentStage(): Promise<MiningStage> {
+    let stage = MiningStage.None
+
+    try {
+      const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+      const btnMine = await page.$(CLS_BTN_MINE)
+      const btnClaim = await page.$(CLS_BTN_CLAIM)
+      const txtCooldown = await page.$(CLS_TXT_COOLDOWN)
+      if (btnMine) {
+        stage = MiningStage.Mine
+      } else if (btnClaim) {
+        stage = MiningStage.Claim
+      } else if (txtCooldown) {
+        stage = MiningStage.Cooldown
+      }
+    } catch (err) { }
+
+    this._miningStage = stage
+
+    return stage
+  }
+
+  private async getCooldown(page: Page): Promise<number> {
+    const txtCooldown = await page.$eval(CLS_TXT_COOLDOWN, item => item.textContent)
+    const multiplier = [60 * 60, 60, 1]
+    const cooldown = txtCooldown.split(':')
+      .map((item, idx) => (multiplier[idx] * parseInt(item)))
+      .reduce((a, b) => a + b)
+    return cooldown * 1000
+  }
+
   private async stepPrepare() {
-    const page = await this.provider.getPage(PAGE_TITLE)
-    // await page.bringToFront()
-    const cls = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
-    this._tlm = parseFloat(cls)
-    this.nextStep(STEP_MINE)
+    const stage = await this.getCurrentStage()
+
+    if (stage === MiningStage.Mine) {
+      this.nextStep(STEP_MINE)
+    }
+    else if (stage === MiningStage.Claim) {
+      this.nextStep(STEP_CLAIM)
+    }
+    else if (stage === MiningStage.Cooldown) {
+      const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+      const cooldown = await this.getCooldown(page)
+      const awakeTime = getAwakeTime(cooldown)
+      logger.log('Tools cooldown, next mining scheduled at ' + (moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')))
+      this.complete(TaskState.Canceled, 'Cooldown', null, awakeTime)
+    }
+    else {
+      // Undetermined stage
+      setTimeout(() => {
+        this.stepPrepare()
+      }, 3000);
+    }
+  }
+
+  private async getBalance(resp: HTTPResponse): Promise<number> {
+    const url = resp.url()
+    if (url.indexOf(AW_API_GET_TABLE_ROWS) === -1) {
+      return -1
+    }
+
+    if (!resp.ok()) {
+      return -1
+    }
+
+    // Filter by request data
+    const req = resp.request()
+    // {
+    //   "json": true,
+    //   "code": "alien.worlds",
+    //   "scope": "yekm2.c.wam",
+    //   "table": "accounts",
+    //   "lower_bound": "",
+    //   "upper_bound": "",
+    //   "index_position": 1,
+    //   "key_type": "",
+    //   "limit": 10,
+    //   "reverse": false,
+    //   "show_payer": false
+    // }
+    const postData = JSON.parse(req.postData())
+    if (postData.scope !== this._account.account
+      || postData.table !== 'accounts'
+      || postData.code !== 'alien.worlds') {
+      return -1
+    }
+
+    let tlm = -1
+    try {
+      const dat = await resp.json()
+      tlm = parseFloat(dat.rows[0].balance)
+    } catch (err) { }
+
+    return isNaN(tlm) ? -1 : tlm;
   }
 
   private async stepMine() {
     const data = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-    logger.log(`Start [${data.counter + 1}] mining ...`)
-    const page = await this.provider.getPage(PAGE_TITLE)
-    await page.waitForSelector(CLS_BTN_MINE)
-    await page.click(CLS_BTN_MINE, {
-      delay: 50 + random(200)
-    })
-    sleep(1)
+    logger.log(`👷 Ready for ${data.counter + 1}th mine`)
 
-    this.nextStep(STEP_CLAIM)
+    const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+    await page.bringToFront()
+
+    const getBalance = async (resp: HTTPResponse) => {
+      const tlm = await this.getBalance(resp)
+      if (this._tlm === -1 && tlm >= 0) {
+        this._tlm = tlm
+        page.off(PageEmittedEvents.Response, getBalance)
+        await page.click(CLS_BTN_MINE)
+        logger.log(`⛏ Mining...`)
+
+        this.nextStep(STEP_CLAIM)
+      }
+    }
+    page.on(PageEmittedEvents.Response, getBalance)
   }
 
   private async stepClaim() {
-    logger.log('Claiming...')
-    const page = await this.provider.getPage(PAGE_TITLE)
-    await page.waitForSelector(CLS_BTN_CLAIM)
-    await page.click(CLS_BTN_CLAIM, {
-      delay: 1500 + random(5000)
-    })
-    sleep(1)
+    const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
 
-    this.nextStep(STEP_APPROVE)
-  }
+    const doApprove = async (popup: Page) => {
+      const onApproved = () => {
+        popup.off(PageEmittedEvents.Close, onApproved)
+        popup.off(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
 
-  private async stepApprove() {
-    logger.log('Aapproving...')
-    const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
-    // await approvePage.bringToFront()
+        unregisteEvents()
 
-    approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 2 * 60 * 1000 })
-      .then(async () => {
-        await approvePage.click(CLS_BTN_APPROVE, {
-          delay: 500 + random(2000)
-        })
-        logger.log('Waiting mining state...')
         this.nextStep(STEP_CONFIRM)
-      })
-      .catch(async () => {
-        logger.log('Claim timeout, retry...')
-        await approvePage.close()
-        this.nextStep(STEP_CLAIM)
-      })
+      }
+
+      const onApprovePageDom = async () => {
+        try {
+          await popup.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60 * 1000 })
+          await popup.click(CLS_BTN_APPROVE)
+        } catch (err) {
+          if (!popup.isClosed()) {
+            setTimeout(() => {
+              onApprovePageDom()
+            }, 3000);
+          }
+        }
+      }
+
+      popup.on(PageEmittedEvents.Close, onApproved)
+      popup.on(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
+
+      page.on(PageEmittedEvents.Response, onPushTransaction)
+    }
+
+    const onPushTransaction = async (resp: HTTPResponse) => {
+      const url = resp.url()
+      if (url.indexOf(AW_API_PUSH_TRANSACTION) === -1) {
+        return
+      }
+      this._miningStage = MiningStage.Complete
+      page.off(PageEmittedEvents.Response, onPushTransaction)
+    }
+
+    const unregisteEvents = () => {
+      page.off(PageEmittedEvents.Popup, doApprove)
+    }
+
+    page.on(PageEmittedEvents.Popup, doApprove)
+
+    try {
+      await page.waitForSelector(CLS_BTN_CLAIM)
+      await page.click(CLS_BTN_CLAIM)
+      logger.log('🐝 Claiming...')
+    } catch (err) {
+      logger.log('Wait for CLS_BTN_CLAIM timeout')
+      unregisteEvents()
+
+      setTimeout(() => {
+        this.stepClaim()
+      }, 3000)
+    }
   }
 
   private async stepConfirm() {
-    // TODO: Watch api request response
-    // https://aw-guard.yeomen.ai/v1/chain/push_transaction
-    // Response 500:
-    // ```
-    // {
-    //   "code": 500,
-    //   "message": "Internal Service Error",
-    //   "error": {
-    //     "code": 3080004,
-    //     "name": "tx_cpu_usage_exceeded",
-    //     "what": "Transaction exceeded the current CPU usage limit imposed on the transaction",
-    //     "details": [
-    //       {
-    //         "message": "billed CPU time (903 us) is greater than the maximum billable CPU time for the transaction (0 us)",
-    //         "file": "transaction_context.cpp",
-    //         "line_number": 470,
-    //         "method": "validate_account_cpu_usage"
-    //       }
-    //     ]
-    //   }
-    // }
-    // ```
-    const page = await this.provider.getPage(PAGE_TITLE)
-    // await page.bringToFront()
-    const btnMine = await page.$(CLS_BTN_MINE)
-    const txtCoolDown = await page.$(CLS_TXT_COOLDOWN)
-    const  { awakeDelay, outOfResourceDelay } = config.mining
+    logger.log('🐝 Confirming...')
+    const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+    let apiFixTimes = 5
+    const checkBalance = async (resp: HTTPResponse) => {
+      if (this._miningStage !== MiningStage.Complete) {
+        return
+      }
 
-    if (!btnMine && !txtCoolDown) {
-      this.tick(STEP_CONFIRM)
-      return
+      const tlm = await this.getBalance(resp)
+      if (isNaN(tlm) || tlm < 0) {
+        return
+      }
+      const reward = Math.round((tlm - this._tlm) * 10000) / 10000
+
+      apiFixTimes--
+      if (reward === 0 && apiFixTimes >= 0) {
+        // API result maybe delay
+        // Wait for 5 times api request
+        return
+      }
+
+      let awakeTime
+      try {
+        await page.waitForSelector(CLS_TXT_COOLDOWN)
+        const cooldown = await this.getCooldown(page)
+        awakeTime = getAwakeTime(cooldown)
+      } catch (err) {
+        awakeTime = getAwakeTime(30 * 60 * 1000)
+      }
+
+
+      const result: IMiningResult = {
+        nextAttemptAt: awakeTime,
+        total: tlm,
+        reward,
+      }
+
+      page.off(PageEmittedEvents.Response, checkBalance)
+      this._miningStage = MiningStage.None
+
+      const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+      this.provider.setData(DATA_KEY_MINING, {
+        total: tlm,
+        rewards: conf.rewards + reward,
+        counter: conf.counter + 1
+      }, true)
+
+      const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
+      if (reward > 0) {
+        logger.log(`✨ ${reward} TLM mined, total ${tlm} TLM.`)
+        logger.log(`Next mine attempt scheduled at ${awstr}`)
+        this.complete(TaskState.Completed, 'Success', result, awakeTime)
+      } else {
+        logger.log(`Mining failed because of out of resource. Current total ${tlm} TLM.`)
+        logger.log(`Next mine attempt scheduled at ${awstr}`)
+        this.complete(TaskState.Completed, 'Out of resource', result, awakeTime)
+      }
     }
+    page.on(PageEmittedEvents.Response, checkBalance)
+  }
 
-    let outOfCPU = false
-    let total = 0
-    let reward = 0
-    let awakeTime = 0
-
-    if (btnMine) {
-      outOfCPU = true
-      awakeTime = new Date().getTime() + outOfResourceDelay * 1000
-    } else {
-      const countDown = await page.$eval(CLS_TXT_COOLDOWN, (item) => item.textContent)
-      const seconds = countDown.split(':')
-        .map((item, idx) => (parseInt(item) * ([3600, 60, 1][idx])))
-        .reduce((a, b) => a + b) * 1000
-      awakeTime = new Date().getTime() + seconds
+  prepare(): boolean {
+    const data = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
+    if (!data.logined) {
+      this._message = 'Not login.'
     }
-
-    const tlm = await page.$eval(CLS_TXT_BALANCE, item => item.textContent)
-    const delay = random(awakeDelay, awakeDelay / 2) * 1000
-    total = parseFloat(tlm)
-    reward = Math.round((total - this._tlm) * 10000) / 10000
-    awakeTime += delay
-
-    const result: IMiningResult = {
-      nextAttemptAt: awakeTime,
-      total,
-      reward,
-    }
-
-    const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-    if (outOfCPU) {
-      logger.log(`Out of CPU/NET, Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
-      this.complete(TaskState.Abort, 'Out of CPU/NET.', result, awakeTime)
-    } else {
-      logger.log(`Mining reward: ${reward} TLM, current total: ${total} TLM.`)
-      logger.log(`Next mining attempt will be at ${moment(awakeTime).format('HH:mm:ss')} almost.`)
-      conf.counter += 1
-      this.complete(TaskState.Completed, 'Success', result, awakeTime)
-    }
-
-    conf.total = total
-    this.provider.setData(DATA_KEY_MINING, conf)
-    this.provider.saveData()
+    this._account = data
+    return data.logined
   }
 }

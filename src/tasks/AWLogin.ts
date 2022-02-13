@@ -1,6 +1,6 @@
 import BaseTask, { TaskState } from "./BaseTask";
 import Logger from "../Logger";
-import { PAGE_ALIEN_WORLDS, PAGE_ALIEN_WORLDS_TESTER, URL_ALIEN_WORLDS, URL_AW_API_GET_ACCOUNT } from "../utils/constant";
+import { PAGE_ALIEN_WORLDS, PAGE_ALIEN_WORLDS_TESTER, URL_ALIEN_WORLDS, AW_API_GET_ACCOUNT } from "../utils/constant";
 import { HTTPResponse, PageEmittedEvents } from "puppeteer";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo } from "../types";
 
@@ -33,7 +33,7 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
     const onResponse = async (resp: HTTPResponse) => {
       const url = resp.url()
 
-      if (url.indexOf(URL_AW_API_GET_ACCOUNT) > -1) {
+      if (url.indexOf(AW_API_GET_ACCOUNT) > -1) {
         unregisterEvent()
 
         if (resp.ok()) {

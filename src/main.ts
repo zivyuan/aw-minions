@@ -9,7 +9,7 @@ import WaxLogin from './tasks/WaxLogin'
 import DingBot from './DingBot'
 import Minion from './Minion'
 import AWLogin from './tasks/AWLogin'
-// import Mining from './tasks/Mining'
+import Mining from './tasks/Mining'
 // import ClaimStakeRewards from './tasks/ClaimStakeRewards'
 // import Report from './tasks/Report'
 
@@ -123,7 +123,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   const argv = <IBotArguments>yargs(hideBin(process.argv))
     .option("username", {
       alias: "u",
-      describe: "Social account to login in Alien Worlds",
+      describe: "Email to login in Alien Worlds",
       array: true,
       default: [],
     })
@@ -208,9 +208,9 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   })
   minion.addTask(WaxLogin)
   minion.addTask(AWLogin)
-  // minion.addTask(Mining, 0)
-  // minion.addTask(ClaimStakeRewards, 0)
-  // minion.addTask(Report, 0, false)
+  minion.addTask(Mining)
+  // minion.addTask(ClaimStakeRewards)
+  // minion.addTask(Report, false)
   minion.start()
 })();
 

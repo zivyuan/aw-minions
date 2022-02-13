@@ -1,7 +1,7 @@
 import { sleep } from "sleep"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
-import { PAGE_WAX_WALLET_TESTER, PAGE_WAXWALLET as PAGE_WAX_WALLET, URL_WAX_API_SESSION, URL_WAX_WALLET, URL_WAX_WALLET_LOGIN } from "../utils/constant"
+import { PAGE_WAX_WALLET_TESTER, PAGE_WAXWALLET as PAGE_WAX_WALLET, WAX_API_SESSION, URL_WAX_WALLET, URL_WAX_WALLET_LOGIN } from "../utils/constant"
 import DingBot from "../DingBot"
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, IAccountInfo, CookieObject } from "../types"
 import { PageEmittedEvents } from "puppeteer"
@@ -99,7 +99,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     const checkLoginStatus = async (resp) => {
       const respUrl = resp.url()
       const status = resp.status()
-      if (respUrl.indexOf(URL_WAX_API_SESSION) > -1) {
+      if (respUrl.indexOf(WAX_API_SESSION) > -1) {
         if (resp.ok()) {
           // Login success
           sleep(3)

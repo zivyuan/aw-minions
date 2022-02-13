@@ -139,10 +139,10 @@ export default class Minion implements IMiningDataProvider {
    * @param life 任务执行次数, 0 为无限次
    * @param interactive 是否需要交互
    */
-  addTask(task: any, life = 0, interactive = true) {
+  addTask(task: any, interactive = true) {
     this._taskPool.push({
       Class: task,
-      life,
+      life: 0,
       awakeTime: 0,
       interactive
     })
