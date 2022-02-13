@@ -50,6 +50,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private _tlm = -1
   private _miningStage = MiningStage.None
+  private _miningSuccess = false
   private _account: IAccountInfo
 
   constructor() {
@@ -216,6 +217,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         return
       }
       this._miningStage = MiningStage.Complete
+      this._miningSuccess = resp.ok()
       page.off(PageEmittedEvents.Response, onPushTransaction)
     }
 
@@ -242,9 +244,9 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepConfirm() {
     logger.log('🐝 Confirming...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
-    let apiFixTimes = 5
     const checkBalance = async (resp: HTTPResponse) => {
-      if (this._miningStage !== MiningStage.Complete) {
+      if (this._miningStage !== MiningStage.Complete
+        || this.state !== TaskState.Running) {
         return
       }
 
@@ -252,47 +254,53 @@ export default class Mining extends BaseTask<IMiningResult> {
       if (isNaN(tlm) || tlm < 0) {
         return
       }
-      const reward = Math.round((tlm - this._tlm) * 10000) / 10000
 
-      apiFixTimes--
-      if (reward === 0 && apiFixTimes >= 0) {
-        // API result maybe delay
-        // Wait for 5 times api request
-        return
-      }
+      if (this._miningSuccess) {
+        let reward = tlm - this._tlm
+        // Reward must greater than 0
+        if (reward <= 0) {
+          return
+        }
+        this._tlm = tlm
 
-      let awakeTime
-      try {
-        await page.waitForSelector(CLS_TXT_COOLDOWN)
-        const cooldown = await this.getCooldown(page)
-        awakeTime = getAwakeTime(cooldown)
-      } catch (err) {
-        awakeTime = getAwakeTime(30 * 60 * 1000)
-      }
+        reward = Math.round(reward * 10000) / 10000
+        let awakeTime
+        try {
+          await page.waitForSelector(CLS_TXT_COOLDOWN)
+          const cooldown = await this.getCooldown(page)
+          awakeTime = getAwakeTime(cooldown)
+        } catch (err) {
+          awakeTime = getAwakeTime(30 * 60 * 1000)
+        }
+        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
+        const result: IMiningResult = {
+          nextAttemptAt: awakeTime,
+          total: tlm,
+          reward,
+        }
 
+        page.off(PageEmittedEvents.Response, checkBalance)
+        this._miningStage = MiningStage.None
 
-      const result: IMiningResult = {
-        nextAttemptAt: awakeTime,
-        total: tlm,
-        reward,
-      }
+        const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+        this.provider.setData(DATA_KEY_MINING, {
+          total: tlm,
+          rewards: conf.rewards + reward,
+          counter: conf.counter + 1
+        }, true)
 
-      page.off(PageEmittedEvents.Response, checkBalance)
-      this._miningStage = MiningStage.None
-
-      const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-      this.provider.setData(DATA_KEY_MINING, {
-        total: tlm,
-        rewards: conf.rewards + reward,
-        counter: conf.counter + 1
-      }, true)
-
-      const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
-      if (reward > 0) {
         logger.log(`✨ ${reward} TLM mined, total ${tlm} TLM.`)
         logger.log(`Next mine attempt scheduled at ${awstr}`)
         this.complete(TaskState.Completed, 'Success', result, awakeTime)
       } else {
+        const awakeTime = getAwakeTime(30 * 60 * 1000)
+        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
+        const result: IMiningResult = {
+          nextAttemptAt: awakeTime,
+          total: tlm,
+          reward: 0,
+        }
+        page.off(PageEmittedEvents.Response, checkBalance)
         logger.log(`Mining failed because of out of resource. Current total ${tlm} TLM.`)
         logger.log(`Next mine attempt scheduled at ${awstr}`)
         this.complete(TaskState.Completed, 'Out of resource', result, awakeTime)
