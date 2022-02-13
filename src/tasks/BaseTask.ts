@@ -56,7 +56,7 @@ export interface ITask<T> {
 
   start(): Promise<ITaskResult<T>>
 
-  prepare(): Promise<void>
+  prepare(): boolean
 
   stop(): void
 
@@ -252,9 +252,13 @@ export default class BaseTask<T> implements ITask<T> {
     this._provider = provider
   }
 
-  async prepare(): Promise<void> { }
+  prepare(): boolean {
+    return true
+  }
 
   start(): Promise<ITaskResult<T>> {
+    this._state = TaskState.Running
+
     return new Promise((resolve, reject) => {
       this._resolve = resolve
       this._reject = reject
@@ -271,6 +275,10 @@ export default class BaseTask<T> implements ITask<T> {
   }
 
   destroy(): void { }
+
+  isReady(): boolean {
+    return true
+  }
 
   /**
    *

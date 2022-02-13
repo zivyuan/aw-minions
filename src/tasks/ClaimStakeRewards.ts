@@ -1,6 +1,6 @@
 import moment from "moment";
 import Logger from "../Logger";
-import { PAGE_FILTER_SIGN, PAGE_FILTER_WAX, URL_WAX_WALLET_STAKING } from "../utils/constant";
+import { PAGE_FILTER_SIGN, PAGE_WAX_WALLET_TESTER, URL_WAX_WALLET_STAKING } from "../utils/constant";
 import BaseTask, { TaskState } from "./BaseTask";
 import { sleep } from 'sleep'
 import { random } from "../utils/utils";
@@ -27,7 +27,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     const selStakedWAXP = '.stake-card:nth-child(1) .__react_component_tooltip+div'
 
     logger.log('Search for claiming ...')
-    const page = await this.provider.getPage(PAGE_FILTER_WAX, URL_WAX_WALLET_STAKING)
+    const page = await this.provider.getPage(PAGE_WAX_WALLET_TESTER, URL_WAX_WALLET_STAKING)
     // await page.bringToFront()
     const url = await page.evaluate(`document.location.href`)
 

@@ -171,40 +171,43 @@ export default class Minion implements IMiningDataProvider {
 
     if (pickedTask && this._requestWindow(pickedTask)) {
       const task: ITask<any> = new (pickedTask.Class)()
-      logger.log(`Task #${task.no} ${task.name} started.`)
+      logger.log(`Task #${task.no} ${task.name} start.`)
       task.setProvider(this)
-      task.prepare()
-      task.start()
-        .then((rst: ITaskResult<any>) => {
-          if (rst.awakeTime) {
-            pickedTask.awakeTime = rst.awakeTime
-            pickedTask.awakeTimeStr = moment(rst.awakeTime).format('YYYY-MM-DD HH:mm:ss')
-          }
-          logger.log(`Task #${task.no} ${task.name} complete with state: ${TaskState[rst.state]}`)
-        })
-        .catch(err => {
-          logger.log(`Task #${task.no} ${task.name} complete with error: ${err}`)
-        })
-        .finally(() => {
-          let polling = 1
-          if (task.shouldTerminate) {
-            this._taskPool.splice(this._pollingIndex, 1)
-            polling = 0
-          }
+      if (task.prepare()) {
+        task.start()
+          .then((rst: ITaskResult<any>) => {
+            if (rst.awakeTime) {
+              pickedTask.awakeTime = rst.awakeTime
+              pickedTask.awakeTimeStr = moment(rst.awakeTime).format('YYYY-MM-DD HH:mm:ss')
+            }
+            logger.log(`Task #${task.no} ${task.name} complete with state: ${TaskState[rst.state]}`)
+          })
+          .catch(err => {
+            logger.log(`Task #${task.no} ${task.name} complete with error: ${err}`)
+          })
+          .finally(() => {
+            let polling = 1
+            if (task.shouldTerminate) {
+              this._taskPool.splice(this._pollingIndex, 1)
+              polling = 0
+            }
 
-          this._pollingIndex = (this._pollingIndex + polling) % this._taskPool.length
+            this._pollingIndex = (this._pollingIndex + polling) % this._taskPool.length
 
-          this._state = MiningState.Idle
-          this._currentTask.destroy()
-          this._currentTask = null
-          this._nextTaskTimer = new Date().getTime() + config.minion.taskInterval * 1000
+            this._state = MiningState.Idle
+            this._currentTask.destroy()
+            this._currentTask = null
+            this._nextTaskTimer = new Date().getTime() + config.minion.taskInterval * 1000
 
-          if (pickedTask.interactive) {
-            this._releaseLock()
-          }
-        })
-      this._currentTask = task
-      this._state = MiningState.Busy
+            if (pickedTask.interactive) {
+              this._releaseLock()
+            }
+          })
+        this._currentTask = task
+        this._state = MiningState.Busy
+      } else {
+        logger.log(`Task skiped because not ready.`)
+      }
     }
 
     //
@@ -283,6 +286,18 @@ export default class Minion implements IMiningDataProvider {
           page.on(key, handles[key])
         }
       }
+
+
+      page.on('request', (interceptedRequest) => {
+        if (interceptedRequest.isInterceptResolutionHandled()) return;
+        // Cancel all images
+        if (
+          interceptedRequest.url().endsWith('.png') ||
+          interceptedRequest.url().endsWith('.jpg')
+        )
+          interceptedRequest.abort();
+        else interceptedRequest.continue();
+      });
 
       return page
     }

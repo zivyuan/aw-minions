@@ -8,8 +8,8 @@ import config from './config'
 import WaxLogin from './tasks/WaxLogin'
 import DingBot from './DingBot'
 import Minion from './Minion'
+import AWLogin from './tasks/AWLogin'
 // import Mining from './tasks/Mining'
-// import AWLogin from './tasks/AWLogin'
 // import ClaimStakeRewards from './tasks/ClaimStakeRewards'
 // import Report from './tasks/Report'
 
@@ -181,8 +181,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
 
   const minion = new Minion(argv.account[0], argv.username[0], argv.password[0])
   minion.prepare(browser)
-  minion.addTask(WaxLogin, 1)
-  // minion.addTask(AWLogin, 1)
+  minion.addTask(WaxLogin)
+  minion.addTask(AWLogin)
   // minion.addTask(Mining, 0)
   // minion.addTask(ClaimStakeRewards, 0)
   // minion.addTask(Report, 0, false)

@@ -1,4 +1,4 @@
-export const PAGE_TITLE_ALIEN_WORLDS = /Alien Worlds/i
+export const PAGE_ALIEN_WORLDS_TESTER = /Alien Worlds/i
 export const PAGE_WAX_WALLET_TESTER = /WAX Cloud Wallet/i
 export const PAGE_FILTER_SIGN = /cloud-wallet\/signing/i
 
@@ -9,6 +9,7 @@ export const PAGE_ALIEN_WORLDS = 'ALIEN_WORLDS'
 export const URL_WAX_WALLET_LOGIN = 'https://all-access.wax.io/'
 export const URL_WAX_WALLET = 'https://wallet.wax.io/'
 export const URL_WAX_API_SESSION = 'https://all-access.wax.io/api/session'
+export const URL_AW_API_GET_ACCOUNT = 'https://aw-guard.yeomen.ai/v1/chain/get_account'
 export const URL_WAX_WALLET_STAKING = 'https://wallet.wax.io/staking-rewards'
 
 export const URL_ALIEN_WORLDS = 'https://play.alienworlds.io/'

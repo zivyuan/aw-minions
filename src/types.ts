@@ -31,6 +31,12 @@ export interface TaskObject {
 
 export type CookieObject = Protocol.Network.CookieParam
 
+export interface IResourceLimit {
+  available: number
+  max: number
+  used: number
+}
+
 export interface IMiningData {
   total: number
   rewards: number
@@ -38,6 +44,13 @@ export interface IMiningData {
   stakeRewardTotal: number
   stakeRewardLast: number
   counter: number
+  //
+  cpuLimit?: IResourceLimit
+  netLimit?: IResourceLimit
+  cpuWeight?: number
+  netWeight?: number
+  ramQuota?: number
+  ramUsage?: number
 }
 
 export interface ITaskSavableData {
