@@ -68,10 +68,16 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
 
     const title = await page.title()
     if (!PAGE_ALIEN_WORLDS_TESTER.test(title || '')) {
-      page.goto(URL_ALIEN_WORLDS)
+      const opts = {
+        // Give 3 minutes to load resources
+        timeout: 3 * 60 * 1000
+      }
+      page.goto(URL_ALIEN_WORLDS, opts)
         .catch(err => {
+          console.log('alien page loaded')
           if (this.state === TaskState.Running) {
-            logger.log(err.message)
+            // TODO: Page load over time, double check login status
+            logger.log(err, err.message)
             const awakeTime = new Date().getTime() + 5 * 60 * 1000
             this.complete(TaskState.Canceled, err.message, null, awakeTime)
           }
@@ -83,6 +89,9 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
 
   prepare(): boolean {
     const data = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
+    if (!data.logined) {
+      this._message = 'Not login.'
+    }
     return data.logined
   }
 }

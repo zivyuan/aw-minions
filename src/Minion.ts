@@ -192,9 +192,9 @@ export default class Minion implements IMiningDataProvider {
 
     if (pickedTask && this._requestWindow(pickedTask)) {
       const task: ITask<any> = new (pickedTask.Class)()
-      logger.log(`Task #${task.no} ${task.name} start.`)
       task.setProvider(this)
       if (task.prepare()) {
+        logger.log(`Task #${task.no} ${task.name} start.`)
         task.start()
           .then((rst: ITaskResult<any>) => {
             if (rst.awakeTime) {
@@ -227,7 +227,8 @@ export default class Minion implements IMiningDataProvider {
         this._currentTask = task
         this._state = MiningState.Busy
       } else {
-        logger.log(`Task skiped because not ready.`)
+        logger.log(`Task #${task.no} ${task.name} skiped because ${task.message}`)
+        this._pollingIndex = (this._pollingIndex + 1) % this._taskPool.length
       }
     }
 

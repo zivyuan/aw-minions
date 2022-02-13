@@ -49,7 +49,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
               unregisterEvents()
               this.nextStep(STEP_FILL_FORM)
             }
-          } catch (err) {}
+          } catch (err) { }
         }, 3000)
 
       } else if (url === URL_WAX_WALLET) {
@@ -81,12 +81,13 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
         await page.setCookie(...cookie)
         sleep(1)
       }
-      page.on(PageEmittedEvents.DOMContentLoaded, handleDomLoaded)
-      page.goto(URL_WAX_WALLET_LOGIN)
-        .catch(err => {
-          handleError(err)
-        })
     }
+
+    page.on(PageEmittedEvents.DOMContentLoaded, handleDomLoaded)
+    page.goto(URL_WAX_WALLET_LOGIN)
+      .catch(err => {
+        handleError(err)
+      })
   }
 
 
@@ -112,7 +113,7 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
           try {
             dat = await resp.json()
             resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
-          } catch(err) {
+          } catch (err) {
             resons = ['Response parse error.', err.message]
           }
 
