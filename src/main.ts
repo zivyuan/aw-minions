@@ -8,10 +8,10 @@ import config from './config'
 import WaxLogin from './tasks/WaxLogin'
 import DingBot from './DingBot'
 import Minion from './Minion'
-import Mining from './tasks/Mining'
-import AWLogin from './tasks/AWLogin'
-import ClaimStakeRewards from './tasks/ClaimStakeRewards'
-import Report from './tasks/Report'
+// import Mining from './tasks/Mining'
+// import AWLogin from './tasks/AWLogin'
+// import ClaimStakeRewards from './tasks/ClaimStakeRewards'
+// import Report from './tasks/Report'
 
 interface IBotArguments {
   /**
@@ -156,6 +156,12 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     .demandOption(["account"])
     .help("help").argv;
 
+  if (argv.dev) {
+    if (fs.existsSync('./cache/window-lock')) {
+      fs.unlinkSync('./cache/window-lock')
+    }
+  }
+
   Logger.account = argv.account[0].trim()
   if (argv.username.length > 1) {
     logger.log('Alien World\'s minions are weaking...')
@@ -176,10 +182,10 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   const minion = new Minion(argv.account[0], argv.username[0], argv.password[0])
   minion.prepare(browser)
   minion.addTask(WaxLogin, 1)
-  minion.addTask(AWLogin, 1)
-  minion.addTask(Mining, 0)
-  minion.addTask(ClaimStakeRewards, 0)
-  minion.addTask(Report, 0, false)
+  // minion.addTask(AWLogin, 1)
+  // minion.addTask(Mining, 0)
+  // minion.addTask(ClaimStakeRewards, 0)
+  // minion.addTask(Report, 0, false)
   minion.start()
 })();
 

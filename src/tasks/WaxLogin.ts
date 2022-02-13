@@ -1,9 +1,10 @@
 import { sleep } from "sleep"
 import Logger from "../Logger"
 import BaseTask, { TaskState } from "./BaseTask"
-import { PAGE_FILTER_WAX as PAGE_TITLE_WAX_LOGIN, URL_WAX_WALLET_LOGIN } from "../utils/constant"
+import { PAGE_WAX_WALLET_TESTER, PAGE_WAXWALLET as PAGE_WAX_WALLET, URL_WAX_API_SESSION, URL_WAX_WALLET, URL_WAX_WALLET_LOGIN } from "../utils/constant"
 import DingBot from "../DingBot"
-import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, IAccountInfo } from "../types"
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, IAccountInfo, CookieObject } from "../types"
+import { PageEmittedEvents } from "puppeteer"
 
 export interface IWaxLoginResult {
   account: string
@@ -12,9 +13,11 @@ export interface IWaxLoginResult {
 
 // const STEP_CHECK_COOKIE_CACHE = 'check_cookie_cache'
 const STEP_RESTORE_COOKIE = 'restore_cookie'
-const STEP_AUTO_LOGIN = 'auto_login'
-const STEP_LOGIN = 'login'
+const STEP_FILL_FORM = 'login'
 const STEP_SAVE_COOKIE = 'save_cookie'
+
+const SEL_IPT_USERNAME = '.button-container input[name="userName"]'
+const SEL_IPT_PASSWORD = '.button-container input[name="password"]'
 
 const logger = new Logger()
 export class WaxLogin extends BaseTask<IWaxLoginResult> {
@@ -22,203 +25,162 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
   constructor() {
     super('Wax Login')
 
-    this.registerStep(STEP_RESTORE_COOKIE, this.stepRestoreCookie, true)
-    this.registerStep(STEP_AUTO_LOGIN, this.stepAutoLogin)
-    this.registerStep(STEP_LOGIN, this.stepLogin)
-    this.registerStep(STEP_SAVE_COOKIE, this.stepSaveCookie)
+    this.registerStep(STEP_RESTORE_COOKIE, this.stepAutoLogin, true)
+    this.registerStep(STEP_FILL_FORM, this.stepFillForm)
+    this.registerStep(STEP_SAVE_COOKIE, this.stepSaveSession)
 
     logger.setScope(this.name)
   }
 
-  private async stepRestoreCookie() {
-    logger.log('Restore cookie...')
-    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-    // await page.bringToFront()
-    const cookie = this.provider.getData<[]>(DATA_KEY_COOKIE)
-
-    if (cookie && cookie.length) {
-      await page.setCookie(...cookie)
-      sleep(1)
-    }
-
-    this.nextStep(STEP_AUTO_LOGIN)
-  }
-
   private async stepAutoLogin() {
-    let waitlogmark = 0
-    let determinNextStepMark = 0
-    const determinNextStep = async () => {
-      let btn_submit = null
-      let avatar = null
+    const page = await this.provider.getPage(PAGE_WAX_WALLET)
+    const title = await page.title()
 
-      try {
-        // Auto login redirects may cause crash
-        const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-        btn_submit = await page.$('.button-container button')
-        avatar = await page.$('.profile .avatar')
-      } catch (err) {
-        logger.log('Context missing.........')
-      }
+    // Reload cookies after page loaded
 
-      if (btn_submit) {
-        logger.log(`Auto login fail, relogin. `)
-        this.nextStep(STEP_LOGIN)
-      } else if (avatar) {
+    const handleDomLoaded = async () => {
+      const url = await page.evaluate(() => document.location.href)
+
+      if (url === URL_WAX_WALLET_LOGIN) {
+        setTimeout(async () => {
+          try {
+            const ipt = await page.$(SEL_IPT_USERNAME)
+            if (ipt) {
+              unregisterEvents()
+              this.nextStep(STEP_FILL_FORM)
+            }
+          } catch (err) {}
+        }, 3000)
+
+      } else if (url === URL_WAX_WALLET) {
+        // Delay 3 seconds for page update
+        sleep(3)
+        unregisterEvents()
         this.nextStep(STEP_SAVE_COOKIE)
-      } else {
-        const tmark = new Date().getTime()
-        if (waitlogmark < tmark) {
-          logger.log('Waiting for auto login...')
-          waitlogmark = tmark + 10 * 1000
+      }
+    }
+    // Handle errors
+    const handleError = (err) => {
+      unregisterEvents()
+      this.complete(TaskState.Canceled, err.message, null, new Date().getTime() + 60 * 1000)
+    }
+
+    const unregisterEvents = () => {
+      page.off(PageEmittedEvents.DOMContentLoaded, handleDomLoaded)
+      page.off(PageEmittedEvents.Error, handleError)
+      page.off(PageEmittedEvents.PageError, handleError)
+    }
+    //
+
+    // Register events
+    page.on(PageEmittedEvents.Error, handleError)
+    page.on(PageEmittedEvents.PageError, handleError)
+    if (!PAGE_WAX_WALLET_TESTER.test(title || '')) {
+      const cookie = this.provider.getData<CookieObject[]>(DATA_KEY_COOKIE)
+      if (cookie && cookie.length) {
+        await page.setCookie(...cookie)
+        sleep(1)
+      }
+      page.on(PageEmittedEvents.DOMContentLoaded, handleDomLoaded)
+      page.goto(URL_WAX_WALLET_LOGIN)
+        .catch(err => {
+          handleError(err)
+        })
+    }
+  }
+
+
+  private async stepFillForm() {
+    // Wax login page
+    const page = await this.provider.getPage(PAGE_WAX_WALLET)
+
+    // Chcek if account was baned
+    const checkLoginStatus = async (resp) => {
+      const respUrl = resp.url()
+      const status = resp.status()
+      if (respUrl.indexOf(URL_WAX_API_SESSION) > -1) {
+        if (resp.ok()) {
+          // Login success
+          sleep(3)
+          unregisterEvents()
+          this.nextStep(STEP_SAVE_COOKIE)
+
+        } else {
+          // Api error, try again later, max try 5 times
+          let dat
+          let resons: string[]
+          try {
+            dat = await resp.json()
+            resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
+          } catch(err) {
+            resons = ['Response parse error.', err.message]
+          }
+
+          if (status === 429) {
+            // Too many times, delay task
+            const awakeTime = new Date().getTime() + 35 * 60 * 1000
+            this.complete(TaskState.Canceled, dat.errors[0].message, null, awakeTime)
+          }
+          logger.log('Login fail: ', resons)
         }
-        determinNextStepMark = setTimeout(() => {
-          determinNextStep()
-        }, 1000)
       }
     }
 
-    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-    logger.log('Try auto login, be quiet!')
-    page.goto(URL_WAX_WALLET_LOGIN)
-      .then(() => {
-        determinNextStep()
-      })
-      .catch(err => {
-        logger.log('Page load error:', err)
-        clearTimeout(determinNextStepMark)
-        determinNextStepMark = setTimeout(() => {
-          this.stepAutoLogin()
-        }, 1000)
-      })
-  }
+    const unregisterEvents = () => {
+      page.off(PageEmittedEvents.Response, checkLoginStatus)
+    }
 
-  private async stepLogin() {
-    // Start fill form
-    const iptUsernameCls = '.button-container input[name="userName"]'
-    const iptPasswordCls = '.button-container input[name="password"]'
-    // Wax login page
+    page.on(PageEmittedEvents.Response, checkLoginStatus)
+
     const btn_submit = '.button-container button'
-    const txt_error = '.button-container .error-container-login'
-
     const { account, username, password } = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
 
-    if (!username || !password) {
-      logger.log(`Login with ..., ah! You bastard!`)
-    } else {
-      logger.log(`Login with ${username}...`)
+    if (username) {
+      logger.log(`Login with ${username}`)
     }
-
-    let limitDelay = 0
-    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
-    const sentryURL = 'https://o451638.ingest.sentry.io/api/5437824/store/?sentry_key=bcafca057f464617afa75b425997930e'
-    page.on('response', (resp) => {
-      if (resp.url().indexOf(sentryURL) === -1) {
-        return
-      }
-
-      const status = resp.status()
-      if (status === 200) {
-        return
-      }
-
-      let delay = 5 * 60 * 1000
-      if (status === 429) {
-        const limited = resp.headers()['retry-after']
-        delay = parseInt(limited) * 60 * 1000
-        logger.log('Login was limited by server. Retry later ...')
-      }
-
-      clearTimeout(limitDelay)
-      limitDelay = setTimeout(async () => {
-        await page.click(btn_submit, {
-          delay: 120
-        })
-      }, delay)
-    })
-
-    await page.waitForSelector(iptUsernameCls)
-    sleep(2)
-    await page.type(iptUsernameCls, username, {
-      delay: 15,
-    });
+    await page.waitForSelector(SEL_IPT_USERNAME)
     sleep(1)
-    await page.type(iptPasswordCls, password, {
-      delay: 16,
-    });
-    sleep(2)
+    if (username) {
+      await page.type(SEL_IPT_USERNAME, username, {
+        delay: 15,
+      });
+    }
+    sleep(1)
+    if (password) {
+      await page.type(SEL_IPT_PASSWORD, password, {
+        delay: 16,
+      });
+    }
 
     if (username && password) {
-      await page.click(btn_submit, {
-        delay: 88
-      })
+      sleep(1)
+      await page.click(btn_submit)
     } else {
-      logger.log('Masterrrrrr, give me the PASSWORD plz, I need work ...')
-      DingBot.getInstance().text(`[${account}] Please login to Wax Wallet ...`)
+      logger.log('Username and password were required!')
+      DingBot.getInstance().text(`[${account}] Please complete login form!`)
     }
-
-    let errorCheckTimer = 0
-    let prevError = ''
-    const checkLoginError = async () => {
-      let errorMsg
-      try {
-        const avatar = await page.$('.profile .avatar')
-        if (avatar) {
-          throw new Error('login success')
-        }
-
-        errorMsg = await page.$$eval(txt_error + ' ul li', (li) => {
-          return [...li].map(item => item.textContent)
-        })
-
-      } catch (err) {
-        clearTimeout(errorCheckTimer)
-        this.nextStep(STEP_SAVE_COOKIE)
-        return
-      }
-
-      if (errorMsg && errorMsg.length) {
-        const msg = errorMsg.join('\n')
-        if (prevError !== msg) {
-          // Uh-oh, you have too many failed login attempts. Check your username and password and try again after 30 minutes
-          logger.log('Seriously? You make THIS SIMPLE STUPID  mistake ... ')
-          logger.log(msg)
-          logger.log('*** Please fix errors and click [LOGIN] button to continue ... ***')
-          prevError = msg
-          DingBot.getInstance().text(`Login error with username: ${username}! Please fix this manual. \n ${msg}`)
-        }
-      }
-      errorCheckTimer = setTimeout(() => {
-        checkLoginError()
-      }, 500)
-    }
-    checkLoginError()
   }
 
-  private async stepSaveCookie() {
-    logger.log('Save cookie ...')
-    const page = await this.provider.getPage(PAGE_TITLE_WAX_LOGIN)
+  private async stepSaveSession() {
+    logger.log('Save session data ...')
+    const page = await this.provider.getPage(PAGE_WAX_WALLET)
     await page.waitForSelector('.profile .avatar')
 
-    const { account, username } = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
+    const { account } = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
     const cookies = await page.cookies()
     this.provider.setData(DATA_KEY_COOKIE, cookies, true)
-
-    if (username) {
-      logger.log(`Love u dady, ahhhahahah~~~~~, work work`)
-    } else {
-      logger.log('Wax login success.')
-    }
+    this.provider.setData(DATA_KEY_ACCOUNT_INFO, {
+      logined: true,
+      password: '',
+    })
+    logger.log('Wax login success.')
+    this._shouldTerminate = true
     this.complete(TaskState.Completed, '', {
       account,
       balance: 0
     })
 
   }
-
-  // private async step2FA() {
-  //   const ipt2FA = '.signin-2fa-container input'
-  //   const btnSubmit = '.signin-2fa-container button[type="submit"]'
-  // }
 
 }
 

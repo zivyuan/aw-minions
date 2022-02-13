@@ -6,8 +6,9 @@ import { Browser, Page } from "puppeteer";
 import config from "./config";
 import Logger from "./Logger";
 import { ITask, ITaskResult, TaskState } from "./tasks/BaseTask";
-import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_BROWSER, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IBrowserConfig, IMinionData, TaskObject } from "./types";
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_BROWSER, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IBrowserConfig, IMinionData, PageEventHandleObject, TaskObject } from "./types";
 import { randomUserAgent } from "./utils/useragent";
+import { merge } from "merge-anything";
 
 export interface IMinionReports {
   reports: {
@@ -26,24 +27,14 @@ export enum MiningState {
   Busy
 }
 
-type PageQueryFunc = (page: Page) => Promise<boolean>
-
 export interface IMiningDataProvider {
   /**
-   * Get a page with condition
+   * Get a page with key
    *
-   * @param query       Condition to find page
-   *                      - string    search page title or url with excatly
-   *                      - regexp    RegExp expression
-   *                      - function  custom defined compare mode
-   *                    string and regexp used to compare with page title or url
-   * @param urlOrWait   Value to determin what to do if no page found.
-   *                      - string  a valid url string will get a new page with this url
-   *                      - true    continue search until query matched
-   *                      - other   create new blank page
-   * @returns Promise<Page>
+   * @param key        Key of the page
+   * @param handles    Event handles should be attached to page
    */
-  getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page>
+  getPage(key: string, handles?: PageEventHandleObject): Promise<Page>
 
   getData<T>(key: string, def?: any): T
 
@@ -58,6 +49,7 @@ export interface IMiningDataProvider {
 const logger = new Logger()
 export default class Minion implements IMiningDataProvider {
   private browser: Browser
+  private _pagePool: Page[] = []
   private _taskPool: TaskObject[] = []
   private _pollingIndex = 0
   private _state: MiningState = MiningState.Idle
@@ -67,6 +59,7 @@ export default class Minion implements IMiningDataProvider {
   private _userAgent: string
   private accountInfo: IAccountInfo
 
+
   constructor(account: string, username?: string, password?: string) {
     this._data = {
       [DATA_KEY_COOKIE]: [],
@@ -74,6 +67,7 @@ export default class Minion implements IMiningDataProvider {
         account: '',
         username: '',
         password: '',
+        logined: false,
       },
       [DATA_KEY_MINING]: {
         total: 0,
@@ -89,6 +83,7 @@ export default class Minion implements IMiningDataProvider {
       account: String(account).trim(),
       username: String(username || '').trim(),
       password: String(password || '').trim(),
+      logined: false
     }
     this.accountInfo = info
 
@@ -97,10 +92,11 @@ export default class Minion implements IMiningDataProvider {
     const browserInfo = this.getData<IBrowserConfig>(DATA_KEY_BROWSER)
     if (browserInfo.userAgent) {
       this._userAgent = browserInfo.userAgent
-    } {
+    } else {
       this._userAgent = randomUserAgent()
-      browserInfo.userAgent = this._userAgent
-      this.setData(DATA_KEY_BROWSER, browserInfo)
+      this.setData(DATA_KEY_BROWSER, {
+        userAgent: this._userAgent
+      })
       this.saveData()
     }
 
@@ -191,12 +187,9 @@ export default class Minion implements IMiningDataProvider {
         })
         .finally(() => {
           let polling = 1
-          if (pickedTask.life > 0) {
-            pickedTask.life = pickedTask.life - 1
-            if (pickedTask.life === 0) {
-              this._taskPool.splice(this._pollingIndex, 1)
-              polling = 0
-            }
+          if (task.shouldTerminate) {
+            this._taskPool.splice(this._pollingIndex, 1)
+            polling = 0
           }
 
           this._pollingIndex = (this._pollingIndex + polling) % this._taskPool.length
@@ -269,94 +262,34 @@ export default class Minion implements IMiningDataProvider {
   //
 
   /**
-   * Get a page with condition
+   * Get a page with key
    *
-   * @param query      A query string maybe a title, url or special method
+   * @param key        Key of the page
    *                   string and regexp used to compare with page title or url
-   * @param queryUrl   Set ture to compare query value with page url
+   * @param handles    Event handles should be attached to page
    * @returns Promise<Page>
    */
-  async getPage(query: string | RegExp | PageQueryFunc, urlOrWait?: string | boolean): Promise<Page> {
-    return new Promise((resolve) => {
-      const searchPage = async () => {
-        const pages = await this.browser.pages()
-        const blankPages: Page[] = []
-        let page: Page
-        let queryFunc: PageQueryFunc
-        if (typeof query === 'function') {
-          queryFunc = query
+  async getPage(key: string, handles?: PageEventHandleObject): Promise<Page> {
 
-        } else if (query instanceof RegExp) {
-          queryFunc = async (page: Page): Promise<boolean> => {
-            const title = await page.title()
-            const url = await page.evaluate(`document.location.href`)
-            const rst = (<RegExp>query).test(title) || (<RegExp>query).test(url)
-            return new Promise((resolve) => {
-              resolve(rst)
-            })
-          }
-
-        } else {
-          queryFunc = async (page: Page): Promise<boolean> => {
-            const title = await page.title()
-            const url = await page.evaluate(`document.location.href`)
-            const rst = (title.indexOf(query) > -1) || (url.indexOf(query) > -1)
-            return new Promise((resolve) => {
-              resolve(rst)
-            })
-          }
-        }
-
-        try {
-          for (let i = 0; i < pages.length; i++) {
-            const p = pages[i]
-            const rst = await queryFunc(p)
-            if (rst && !page) {
-              page = pages[i]
-            }
-            //
-            const url = await p.evaluate(`document.location.href`)
-            const title = await p.title()
-            if (url === 'about:blank' && title === '') {
-              blankPages.push(p)
-            }
-          }
-        } catch (err) {
-          setTimeout(() => {
-            searchPage()
-          }, 500)
-          return
-        }
-
-        if (!page) {
-          if (urlOrWait === true) {
-            // Continue search until find
-            setTimeout(() => {
-              searchPage()
-            }, 500)
-            return
-          }
-          urlOrWait = typeof urlOrWait === 'string' ? urlOrWait : ''
-
-          if (blankPages.length) {
-            page = blankPages.shift()
-          } else {
-            page = await this.browser.newPage()
-          }
-          page.setDefaultTimeout(0)
-          page.setDefaultNavigationTimeout(0)
-          if (urlOrWait.length) {
-            await page.goto(urlOrWait)
-          }
-        }
-
-        page.setUserAgent(this._userAgent)
-        await page.bringToFront()
-
-        resolve(page)
+    const createPage = async (): Promise<Page> => {
+      if (!this._pagePool[key]) {
+        const page = await this.browser.newPage()
+        this._pagePool[key] = page
       }
 
-      searchPage()
+      const page = this._pagePool[key]
+      if (handles) {
+        for (key in handles) {
+          page.on(key, handles[key])
+        }
+      }
+
+      return page
+    }
+
+    return new Promise((resolve) => {
+      const page = createPage()
+      resolve(page)
     })
   }
 
@@ -375,8 +308,7 @@ export default class Minion implements IMiningDataProvider {
 
   setData(key: string, data: any, save = false): void {
     key = this.uniformKey(key)
-    data = JSON.parse(JSON.stringify(data))
-    this._data[key] = data
+    this._data[key] = merge(this._data[key], data)
 
     if (save) {
       this.saveData()

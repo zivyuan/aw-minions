@@ -1,3 +1,6 @@
+import { Metrics, Protocol } from "puppeteer"
+import { ConsoleMessage, Dialog, Frame, HTTPRequest, HTTPResponse, Page, WebWorker } from "puppeteer"
+
 export const DATA_KEY_SESSION_ID = 'session_id'
 export const DATA_KEY_BROWSER = 'BROWSER'
 export const DATA_KEY_COOKIE = 'cookies'
@@ -10,6 +13,7 @@ export interface IBrowserConfig {
 }
 
 export interface IAccountInfo {
+  logined: boolean
   account: string
   username: string
   password: string
@@ -25,20 +29,7 @@ export interface TaskObject {
   interactive: boolean
 }
 
-export interface ICookie {
-  name: string
-  value: string
-  domain?: string
-  path?: string
-  expires?: number
-  size?: number
-  httpOnly?: boolean
-  secure?: boolean
-  session?: boolean
-  sameParty?: boolean
-  sourceScheme?: string
-  sourcePort?: number
-}
+export type CookieObject = Protocol.Network.CookieParam
 
 export interface IMiningData {
   total: number
@@ -57,7 +48,7 @@ export interface ITaskSavableData {
 
 export interface IMinionData {
   account: IAccountInfo
-  cookies: ICookie[]
+  cookies: CookieObject[]
   mining: IMiningData
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [task: string]: any
@@ -68,4 +59,40 @@ export interface IReportConfig {
   interval: number
   // Last report timestamp
   nextReportTime: number
+}
+
+export type PageEventCommonHandle = () => void
+export type PageEventErrorHandle = (error: Error) => void
+export type PageEventPageHandle = (popup: Page) => void
+export type PageEventConsoleHandle = (message: ConsoleMessage) => void
+export type PageEventDialogHandle = (dialog: Dialog) => void
+export type PageEventFrameHandle = (frame: Frame) => void
+export type PageEventRequestHandle = (request: HTTPRequest) => void
+export type PageEventResponseHandle = (response: HTTPResponse) => void
+export type PageEventWebWorkerHandle = (webworker: WebWorker) => void
+export type PageEventMetricsHandle = (webworker: {
+  title: string;
+  metrics: Metrics;
+}) => void
+
+export interface PageEventHandleObject {
+  close?: PageEventCommonHandle
+  console?: PageEventConsoleHandle
+  dialog?: PageEventDialogHandle
+  domcontentloaded?: PageEventCommonHandle
+  error?: PageEventErrorHandle
+  frameattached?: PageEventFrameHandle
+  framedetached?: PageEventFrameHandle
+  framenavigated?: PageEventFrameHandle
+  load?: PageEventCommonHandle
+  metrics?: PageEventMetricsHandle
+  pageerror?: PageEventErrorHandle
+  popup?: PageEventPageHandle
+  request?: PageEventRequestHandle
+  response?: PageEventResponseHandle
+  requestfailed?: PageEventRequestHandle
+  requestfinished?: PageEventRequestHandle
+  requestservedfromcache?: PageEventRequestHandle
+  workercreated?: PageEventWebWorkerHandle
+  workerdestroyed?: PageEventWebWorkerHandle
 }

@@ -10,11 +10,11 @@ import { IMiningDataProvider } from "../Minion"
 export enum TaskState {
   Idle,
   Running,
+
   Completed,
   Canceled,
   Abort,
-  Interrupted,
-  Error
+  Error,
 }
 
 type StepHandle = () => void
@@ -50,6 +50,7 @@ export interface ITask<T> {
   readonly phase: string
   readonly phaseElapseTime: number
   readonly type: TaskType
+  readonly shouldTerminate: boolean
 
   setProvider(provider: IMiningDataProvider): void
 
@@ -75,6 +76,7 @@ export default class BaseTask<T> implements ITask<T> {
   protected _state: TaskState = TaskState.Idle
   protected _phase = 'ready'
   protected _phaseTimeMark = 0
+  protected _shouldTerminate = false
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected _resolve: (value: any) => void
@@ -121,6 +123,10 @@ export default class BaseTask<T> implements ITask<T> {
   get phaseElapseTime(): number {
     const current = new Date().getTime()
     return current - this._phaseTimeMark
+  }
+
+  get shouldTerminate(): boolean {
+    return this._shouldTerminate
   }
 
   protected get provider(): IMiningDataProvider {
@@ -176,7 +182,7 @@ export default class BaseTask<T> implements ITask<T> {
         try {
           const rst = await condition()
           resolve(rst)
-        } catch(err) {
+        } catch (err) {
           setTimeout(() => {
             this.waitUtil(condition)
           }, 500)
@@ -198,7 +204,7 @@ export default class BaseTask<T> implements ITask<T> {
           return
         }
         // eslint-disable-next-line no-empty
-      } catch(err) {}
+      } catch (err) { }
 
       const elapse = (new Date().getTime()) - timemark
       if (timeout > 0 && elapse > timeout) {
@@ -246,7 +252,7 @@ export default class BaseTask<T> implements ITask<T> {
     this._provider = provider
   }
 
-  async prepare(): Promise<void> {}
+  async prepare(): Promise<void> { }
 
   start(): Promise<ITaskResult<T>> {
     return new Promise((resolve, reject) => {
@@ -264,7 +270,7 @@ export default class BaseTask<T> implements ITask<T> {
     this._reject(new Error('User terminated.'))
   }
 
-  destroy(): void {}
+  destroy(): void { }
 
   /**
    *
