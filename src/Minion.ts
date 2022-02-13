@@ -45,10 +45,23 @@ export interface IMiningDataProvider {
   saveData(): void
 }
 
+export interface IMinionConfig {
+  enableCSS?: boolean
+  enableFont?: boolean
+  enableImage?: boolean
+  //
+  requestFilter?: string[]
+}
 
 const logger = new Logger()
 export default class Minion implements IMiningDataProvider {
   private browser: Browser
+  private config: IMinionConfig = {
+    enableCSS: true,
+    enableFont: false,
+    enableImage: false,
+    requestFilter: []
+  }
   private _pagePool: Page[] = []
   private _taskPool: TaskObject[] = []
   private _pollingIndex = 0
@@ -108,8 +121,16 @@ export default class Minion implements IMiningDataProvider {
     return this._state
   }
 
-  async prepare(browser: Browser) {
+  async prepare(browser: Browser, conf?: IMinionConfig) {
     this.browser = browser
+
+    const _conf = <IMinionConfig>merge(this.config, conf || {})
+    _conf.requestFilter = ([
+      conf.enableCSS ? null : 'stylesheet',
+      conf.enableFont ? null : 'font',
+      conf.enableImage ? null : 'image',
+    ]).filter(item => !!item)
+    this.config = _conf
   }
 
   /**
@@ -287,16 +308,16 @@ export default class Minion implements IMiningDataProvider {
         }
       }
 
-
+      await page.setRequestInterception(true);
       page.on('request', (interceptedRequest) => {
         if (interceptedRequest.isInterceptResolutionHandled()) return;
         // Cancel all images
-        if (
-          interceptedRequest.url().endsWith('.png') ||
-          interceptedRequest.url().endsWith('.jpg')
-        )
+        const filter = this.config.requestFilter
+        if (filter.indexOf(interceptedRequest.resourceType()) > -1) {
           interceptedRequest.abort();
-        else interceptedRequest.continue();
+        } else {
+          interceptedRequest.continue();
+        }
       });
 
       return page

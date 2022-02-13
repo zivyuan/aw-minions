@@ -50,6 +50,10 @@ interface IBotArguments {
    * Show devtool when page open
    */
   dev: boolean
+  //
+  enablefont: boolean
+  enableimage: boolean
+  enablecss: boolean
 }
 
 
@@ -153,6 +157,23 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "Use SwitchOmega proxy",
       boolean: true,
     })
+    // enablecss always set to true
+    // Disable css will cause page hang up. Ignore this optmize feature
+    .option("enablecss", {
+      describe: "Allow CSS resources",
+      boolean: true,
+      default: true,
+    })
+    .option("enablefont", {
+      describe: "Allow font resources",
+      boolean: true,
+      default: false,
+    })
+    .option("enableimage", {
+      describe: "Allow image resources",
+      boolean: true,
+      default: false,
+    })
     .demandOption(["account"])
     .help("help").argv;
 
@@ -180,7 +201,11 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   }
 
   const minion = new Minion(argv.account[0], argv.username[0], argv.password[0])
-  minion.prepare(browser)
+  minion.prepare(browser, {
+    enableCSS: true,
+    enableImage: argv.enableimage,
+    enableFont: argv.enablefont
+  })
   minion.addTask(WaxLogin)
   minion.addTask(AWLogin)
   // minion.addTask(Mining, 0)
