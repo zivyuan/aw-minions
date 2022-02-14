@@ -193,7 +193,13 @@ export default class Mining extends BaseTask<IMiningResult> {
         return
       }
 
-      // console.log('Push transaction match...', resp.ok())
+      console.log('Push transaction match...', resp.ok())
+      try {
+        if (!resp.ok()) {
+          const j = await resp.json()
+          console.log(j)
+        }
+      } catch(err) {}
       this._miningStage = MiningStage.Complete
       this._miningSuccess = resp.ok()
       return

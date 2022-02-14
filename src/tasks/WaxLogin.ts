@@ -112,7 +112,18 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
           let resons: string[]
           try {
             dat = await resp.json()
-            resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
+
+            if (dat.challengeToken) {
+              //
+              // TODO:
+              //
+              // {"challengeToken":"a424c879ccd645439d4ff9970e06220d"}
+              // Request e-mail verify code
+              resons = ['e-mail verify code required.']
+
+            } else {
+              resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
+            }
           } catch (err) {
             resons = [
               'Response parse error.', err.message,
