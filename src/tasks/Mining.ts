@@ -197,7 +197,7 @@ export default class Mining extends BaseTask<IMiningResult> {
       try {
         if (!resp.ok()) {
           const j = await resp.json()
-          console.log(j)
+          console.log(JSON.stringify(j, null, 4))
         }
       } catch(err) {}
       this._miningStage = MiningStage.Complete
