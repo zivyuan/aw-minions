@@ -49,10 +49,14 @@ export default class Mining extends BaseTask<IMiningResult> {
     provider.setData(DATA_KEY_MINING, data)
   }
 
-  private _tlm = -1
+  private _account: IAccountInfo
   private _miningStage = MiningStage.None
   private _miningSuccess = false
-  private _account: IAccountInfo
+  private _balanceInitialed = false
+  private _balance = 0
+  private _balanceChange = 0
+  private _addEventListener
+  private _removeEventListener
 
   constructor() {
     super('Mining')
@@ -95,6 +99,9 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private async stepPrepare() {
+    const data = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+    logger.log(`👷 Ready for ${data.counter + 1}th mine`)
+
     const stage = await this.getCurrentStage()
 
     if (stage === MiningStage.Mine) {
@@ -118,66 +125,93 @@ export default class Mining extends BaseTask<IMiningResult> {
     }
   }
 
-  private async getBalance(resp: HTTPResponse): Promise<number> {
-    const url = resp.url()
-    if (url.indexOf(AW_API_GET_TABLE_ROWS) === -1) {
-      return -1
-    }
-
-    if (!resp.ok()) {
-      return -1
-    }
-
-    // Filter by request data
-    const req = resp.request()
-    // {
-    //   "json": true,
-    //   "code": "alien.worlds",
-    //   "scope": "yekm2.c.wam",
-    //   "table": "accounts",
-    //   "lower_bound": "",
-    //   "upper_bound": "",
-    //   "index_position": 1,
-    //   "key_type": "",
-    //   "limit": 10,
-    //   "reverse": false,
-    //   "show_payer": false
-    // }
-    const postData = JSON.parse(req.postData())
-    if (postData.scope !== this._account.account
-      || postData.table !== 'accounts'
-      || postData.code !== 'alien.worlds') {
-      return -1
-    }
-
-    let tlm = -1
-    try {
-      const dat = await resp.json()
-      tlm = parseFloat(dat.rows[0].balance)
-    } catch (err) { }
-
-    return isNaN(tlm) ? -1 : tlm;
-  }
-
   private async stepMine() {
-    const data = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-    logger.log(`👷 Ready for ${data.counter + 1}th mine`)
-
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
     await page.bringToFront()
 
-    const getBalance = async (resp: HTTPResponse) => {
-      const tlm = await this.getBalance(resp)
-      if (this._tlm === -1 && tlm >= 0) {
-        this._tlm = tlm
-        page.off(PageEmittedEvents.Response, getBalance)
-        await page.click(CLS_BTN_MINE)
-        logger.log(`⛏ Mining...`)
-
-        this.nextStep(STEP_CLAIM)
+    const watchBalance = async (resp: HTTPResponse): Promise<unknown> => {
+      const url = resp.url()
+      if (url.indexOf(AW_API_GET_TABLE_ROWS) === -1) {
+        return
       }
+
+      if (!resp.ok()) {
+        return
+      }
+
+      // Filter by request data
+      //
+      // {
+      //   "json": true,
+      //   "code": "alien.worlds",
+      //   "scope": "yekm2.c.wam",
+      //   "table": "accounts",
+      //   "lower_bound": "",
+      //   "upper_bound": "",
+      //   "index_position": 1,
+      //   "key_type": "",
+      //   "limit": 10,
+      //   "reverse": false,
+      //   "show_payer": false
+      // }
+      const req = resp.request()
+      const postData = JSON.parse(req.postData())
+      if (postData.scope !== this._account.account
+        || postData.table !== 'accounts'
+        || postData.code !== 'alien.worlds') {
+        return
+      }
+
+      let tlm = -1
+      try {
+        const dat = await resp.json()
+        tlm = parseFloat(dat.rows[0].balance)
+      } catch (err) {
+        return
+      }
+
+      if (isNaN(tlm)) return
+
+      if (this._balanceInitialed) {
+        const change = tlm - this._balance
+        if (change > 0) {
+          this._balance = tlm
+          this._balanceChange = change
+        }
+      } else {
+        this._balance = tlm
+        this._balanceInitialed = true
+      }
+
+      return
     }
-    page.on(PageEmittedEvents.Response, getBalance)
+
+    const watchTransaction = async (resp: HTTPResponse): Promise<unknown> => {
+      const url = resp.url()
+      if (url.indexOf(AW_API_PUSH_TRANSACTION) === -1) {
+        return
+      }
+
+      // console.log('Push transaction match...', resp.ok())
+      this._miningStage = MiningStage.Complete
+      this._miningSuccess = resp.ok()
+      return
+    }
+
+    this._addEventListener = () => {
+      page.on(PageEmittedEvents.Response, watchBalance)
+      page.on(PageEmittedEvents.Response, watchTransaction)
+    }
+    this._removeEventListener = () => {
+      page.off(PageEmittedEvents.Response, watchBalance)
+      page.off(PageEmittedEvents.Response, watchTransaction)
+    }
+
+    this._addEventListener()
+
+    logger.log('⛏ Mining...')
+    await page.click(CLS_BTN_MINE)
+    this.nextStep(STEP_CLAIM)
   }
 
   private async stepClaim() {
@@ -186,50 +220,46 @@ export default class Mining extends BaseTask<IMiningResult> {
     const doApprove = async (popup: Page) => {
       const onApproved = () => {
         popup.off(PageEmittedEvents.Close, onApproved)
-        popup.off(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
 
         unregisteEvents()
 
-        console.log('Approve popup closed')
+        // console.log('Approve popup closed')
       }
 
-      const onApprovePageDom = async () => {
+      popup.on(PageEmittedEvents.Close, onApproved)
+
+      sleep(1)
+
+
+      const clickApproveButton = async () => {
         try {
-          await popup.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60 * 1000 })
+          const btnApprove = page.$(CLS_BTN_APPROVE)
+          //
+          // TODO: When session expired, popup page will display a login button
+          //
+          // const btnLogin = page.$('.error-container button[type="submit"]')
+          // if (btnLogin) {
+          //   // Reqeuir login, abort curren task
+          //   popup.close()
+          // }
+          if (!btnApprove) {
+            throw new Error('Button not ready')
+          }
           await popup.click(CLS_BTN_APPROVE)
+          sleep(1)
+          this.nextStep(STEP_CONFIRM)
         } catch (err) {
           // Loop until popup closed
           if (!popup.isClosed()) {
             setTimeout(() => {
-              onApprovePageDom()
+              clickApproveButton()
             }, 3000);
+          } else {
+            // What wrong???
           }
         }
       }
-
-      popup.on(PageEmittedEvents.Close, onApproved)
-      // popup.on(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
-
-      page.on(PageEmittedEvents.Response, onPushTransaction)
-
-      sleep(1)
-
-      onApprovePageDom()
-    }
-
-    const onPushTransaction = async (resp: HTTPResponse) => {
-      const url = resp.url()
-      console.log('Push transaction', url)
-      if (url.indexOf(AW_API_PUSH_TRANSACTION) === -1) {
-        return
-      }
-
-      console.log('Push transaction match...', resp.ok())
-      this._miningStage = MiningStage.Complete
-      this._miningSuccess = resp.ok()
-      page.off(PageEmittedEvents.Response, onPushTransaction)
-
-      this.nextStep(STEP_CONFIRM)
+      clickApproveButton()
     }
 
     const unregisteEvents = () => {
@@ -237,12 +267,12 @@ export default class Mining extends BaseTask<IMiningResult> {
     }
 
     try {
-      await page.waitForSelector(CLS_BTN_CLAIM, { timeout: 60 * 1000 })
+      await page.waitForSelector(CLS_BTN_CLAIM, { timeout: 5 * 60 * 1000 })
       page.on(PageEmittedEvents.Popup, doApprove)
-      await page.click(CLS_BTN_CLAIM, { delay: 80 })
       logger.log('🐝 Claiming...')
+      await page.click(CLS_BTN_CLAIM, { delay: 80 })
     } catch (err) {
-      logger.log('Wait for CLS_BTN_CLAIM timeout')
+      logger.log('Wait for CLS_BTN_CLAIM timeout, retry after 3 seconds')
       unregisteEvents()
 
       setTimeout(() => {
@@ -255,61 +285,69 @@ export default class Mining extends BaseTask<IMiningResult> {
     logger.log('🐝 Confirming...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
 
-    let cooldown = -1
-    let newBalance = -1
+    let cooldown = 0
     const confirmMining = () => {
-      if (cooldown > -1 && newBalance > -1) {
-        let reward = newBalance - this._tlm
-        reward = Math.round(reward * 10000) / 10000
-        const awakeTime = getAwakeTime(cooldown)
-        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
-        const result: IMiningResult = {
-          nextAttemptAt: awakeTime,
-          total: newBalance,
-          reward,
+      if (this._miningStage === MiningStage.Complete) {
+        if (this._miningSuccess === false) {
+          cooldown = 60 * 60 * 1000
         }
 
-        const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-        this.provider.setData(DATA_KEY_MINING, {
-          total: newBalance,
-          rewards: conf.rewards + reward,
-          counter: conf.counter + 1
-        }, true)
+        if (cooldown) {
+          const reward = Math.round(this._balanceChange * 10000) / 10000
+          const awakeTime = getAwakeTime(cooldown)
+          const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
+          const result: IMiningResult = {
+            nextAttemptAt: awakeTime,
+            total: this._balance,
+            reward,
+          }
 
-        if (this._miningSuccess) {
-          logger.log(`✨ ${reward} TLM mined, total ${newBalance} TLM.`)
-          logger.log(`Next mine attempt scheduled at ${awstr}`)
-        } else {
-          logger.log(`Mining failed because of out of resource. Current total ${newBalance} TLM.`)
-          logger.log(`Next mine attempt scheduled at ${awstr}`)
+          const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+          this.provider.setData(DATA_KEY_MINING, {
+            total: this._balance,
+            rewards: conf.rewards + reward,
+            counter: conf.counter + 1
+          }, true)
+
+          if (this._miningSuccess) {
+            logger.log(`✨ ${reward} TLM mined, total ${this._balance} TLM.`)
+            logger.log(`Next mine attempt scheduled at ${awstr}`)
+          } else {
+            logger.log(`Mining failed because of out of resource. Current total ${this._balance} TLM.`)
+            logger.log(`Next mine attempt scheduled at ${awstr}`)
+          }
+
+          this._removeEventListener()
+          this._miningStage = MiningStage.Cooldown
+          this.complete(TaskState.Completed, 'Success', result, awakeTime)
+
+          return
         }
-
-        this._miningStage = MiningStage.Cooldown
-        this.complete(TaskState.Completed, 'Success', result, awakeTime)
-
-      } else {
-        setTimeout(() => {
-          confirmMining()
-        }, 1000)
       }
+
+      setTimeout(() => {
+        confirmMining()
+      }, 1000)
     }
 
     const updateCooldown = async () => {
       try {
-        const btnMine = await page.$(CLS_BTN_MINE)
-        if (btnMine) {
-          // Something error on mining
-          const _r = () => {
-            page.off(PageEmittedEvents.DOMContentLoaded, _r)
-            // Button initial status was mine, wait a small seconds
-            sleep(2)
-            updateCooldown()
-          }
-          page.on(PageEmittedEvents.DOMContentLoaded, _r)
-          sleep(1)
-          page.reload()
+        if (this._miningStage === MiningStage.Complete && !this._miningSuccess) {
+          const btnMine = await page.$(CLS_BTN_MINE)
+          if (btnMine) {
+            // Something error on mining
+            const _r = () => {
+              page.off(PageEmittedEvents.DOMContentLoaded, _r)
+              // Button initial status was mine, wait a small seconds
+              sleep(2)
+              updateCooldown()
+            }
+            page.on(PageEmittedEvents.DOMContentLoaded, _r)
+            sleep(1)
+            page.reload()
 
-          return
+            return
+          }
         }
 
         const cdele = await page.$(CLS_TXT_COOLDOWN)
@@ -328,35 +366,7 @@ export default class Mining extends BaseTask<IMiningResult> {
       }, 1000);
     }
 
-    const updateBalance = async (resp: HTTPResponse) => {
-      if (this._miningStage !== MiningStage.Complete
-        || this.state !== TaskState.Running) {
-        return
-      }
-
-      const tlm = await this.getBalance(resp)
-      if (isNaN(tlm) || tlm < 0) {
-        return
-      }
-
-      if (this._miningSuccess) {
-        // New balance must greater than previous
-        if (tlm <= this._tlm) {
-          return
-        }
-        newBalance = tlm
-        this._miningStage = MiningStage.Cooldown
-
-        updateCooldown()
-      } else {
-        cooldown = 30 * 60 * 1000
-      }
-
-      page.off(PageEmittedEvents.Response, updateBalance)
-    }
-
-    page.on(PageEmittedEvents.Response, updateBalance)
-
+    updateCooldown()
     confirmMining()
   }
 
