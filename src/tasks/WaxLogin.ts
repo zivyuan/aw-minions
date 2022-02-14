@@ -114,15 +114,18 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
             dat = await resp.json()
             resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
           } catch (err) {
-            resons = ['Response parse error.', err.message]
+            resons = [
+              'Response parse error.', err.message,
+              `Raw: ${JSON.stringify(dat)}`
+            ]
           }
 
+          logger.log(`Login fail with statue [${status}]: `, resons)
           if (status === 429) {
             // Too many times, delay task
             const awakeTime = new Date().getTime() + 35 * 60 * 1000
             this.complete(TaskState.Canceled, dat.errors[0].message, null, awakeTime)
           }
-          logger.log('Login fail: ', resons)
         }
       }
     }

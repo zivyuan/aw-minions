@@ -276,9 +276,10 @@ export default class Minion implements IMiningDataProvider {
     }
     if (task.interactive && hasLock) {
       return false
+    } else {
+      this._createLock()
+      return true
     }
-    this._createLock()
-    return true
   }
 
 

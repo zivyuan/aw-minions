@@ -6,6 +6,7 @@ import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } fro
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
 import moment from "moment";
+import { sleep } from 'sleep'
 
 // const CLS_TXT_BALANCE = '.css-1tan345 .css-ov2nki'
 const CLS_BTN_MINE = '.css-1i7t220 .css-f33lh6 .css-10opl2l .css-t8p16t'
@@ -189,7 +190,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
         unregisteEvents()
 
-        this.nextStep(STEP_CONFIRM)
+        console.log('Approve popup closed')
       }
 
       const onApprovePageDom = async () => {
@@ -197,6 +198,7 @@ export default class Mining extends BaseTask<IMiningResult> {
           await popup.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60 * 1000 })
           await popup.click(CLS_BTN_APPROVE)
         } catch (err) {
+          // Loop until popup closed
           if (!popup.isClosed()) {
             setTimeout(() => {
               onApprovePageDom()
@@ -206,9 +208,13 @@ export default class Mining extends BaseTask<IMiningResult> {
       }
 
       popup.on(PageEmittedEvents.Close, onApproved)
-      popup.on(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
+      // popup.on(PageEmittedEvents.DOMContentLoaded, onApprovePageDom)
 
       page.on(PageEmittedEvents.Response, onPushTransaction)
+
+      sleep(1)
+
+      onApprovePageDom()
     }
 
     const onPushTransaction = async (resp: HTTPResponse) => {
@@ -216,20 +222,23 @@ export default class Mining extends BaseTask<IMiningResult> {
       if (url.indexOf(AW_API_PUSH_TRANSACTION) === -1) {
         return
       }
+
+      console.log('Push transaction match...', resp.ok())
       this._miningStage = MiningStage.Complete
       this._miningSuccess = resp.ok()
       page.off(PageEmittedEvents.Response, onPushTransaction)
+
+      this.nextStep(STEP_CONFIRM)
     }
 
     const unregisteEvents = () => {
       page.off(PageEmittedEvents.Popup, doApprove)
     }
 
-    page.on(PageEmittedEvents.Popup, doApprove)
-
     try {
-      await page.waitForSelector(CLS_BTN_CLAIM)
-      await page.click(CLS_BTN_CLAIM)
+      await page.waitForSelector(CLS_BTN_CLAIM, { timeout: 60 * 1000})
+      page.on(PageEmittedEvents.Popup, doApprove)
+      await page.click(CLS_BTN_CLAIM, { delay: 80 })
       logger.log('🐝 Claiming...')
     } catch (err) {
       logger.log('Wait for CLS_BTN_CLAIM timeout')
