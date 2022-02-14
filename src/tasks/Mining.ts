@@ -219,6 +219,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     const onPushTransaction = async (resp: HTTPResponse) => {
       const url = resp.url()
+      console.log('Push transaction', url)
       if (url.indexOf(AW_API_PUSH_TRANSACTION) === -1) {
         return
       }
@@ -236,7 +237,7 @@ export default class Mining extends BaseTask<IMiningResult> {
     }
 
     try {
-      await page.waitForSelector(CLS_BTN_CLAIM, { timeout: 60 * 1000})
+      await page.waitForSelector(CLS_BTN_CLAIM, { timeout: 60 * 1000 })
       page.on(PageEmittedEvents.Popup, doApprove)
       await page.click(CLS_BTN_CLAIM, { delay: 80 })
       logger.log('🐝 Claiming...')
@@ -253,7 +254,81 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepConfirm() {
     logger.log('🐝 Confirming...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
-    const checkBalance = async (resp: HTTPResponse) => {
+
+    let cooldown = -1
+    let newBalance = -1
+    const confirmMining = () => {
+      if (cooldown > -1 && newBalance > -1) {
+        let reward = newBalance - this._tlm
+        reward = Math.round(reward * 10000) / 10000
+        const awakeTime = getAwakeTime(cooldown)
+        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
+        const result: IMiningResult = {
+          nextAttemptAt: awakeTime,
+          total: newBalance,
+          reward,
+        }
+
+        const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
+        this.provider.setData(DATA_KEY_MINING, {
+          total: newBalance,
+          rewards: conf.rewards + reward,
+          counter: conf.counter + 1
+        }, true)
+
+        if (this._miningSuccess) {
+          logger.log(`✨ ${reward} TLM mined, total ${newBalance} TLM.`)
+          logger.log(`Next mine attempt scheduled at ${awstr}`)
+        } else {
+          logger.log(`Mining failed because of out of resource. Current total ${newBalance} TLM.`)
+          logger.log(`Next mine attempt scheduled at ${awstr}`)
+        }
+
+        this._miningStage = MiningStage.Cooldown
+        this.complete(TaskState.Completed, 'Success', result, awakeTime)
+
+      } else {
+        setTimeout(() => {
+          confirmMining()
+        }, 1000)
+      }
+    }
+
+    const updateCooldown = async () => {
+      try {
+        const btnMine = await page.$(CLS_BTN_MINE)
+        if (btnMine) {
+          // Something error on mining
+          const _r = () => {
+            page.off(PageEmittedEvents.DOMContentLoaded, _r)
+            // Button initial status was mine, wait a small seconds
+            sleep(2)
+            updateCooldown()
+          }
+          page.on(PageEmittedEvents.DOMContentLoaded, _r)
+          sleep(1)
+          page.reload()
+
+          return
+        }
+
+        const cdele = await page.$(CLS_TXT_COOLDOWN)
+        if (cdele) {
+          const cd = await this.getCooldown(page)
+          if (cd) {
+            cooldown = cd
+            return
+          }
+        }
+      } catch (err) {
+      }
+
+      setTimeout(() => {
+        updateCooldown()
+      }, 1000);
+    }
+
+    const updateBalance = async (resp: HTTPResponse) => {
       if (this._miningStage !== MiningStage.Complete
         || this.state !== TaskState.Running) {
         return
@@ -265,57 +340,24 @@ export default class Mining extends BaseTask<IMiningResult> {
       }
 
       if (this._miningSuccess) {
-        let reward = tlm - this._tlm
-        // Reward must greater than 0
-        if (reward <= 0) {
+        // New balance must greater than previous
+        if (tlm <= this._tlm) {
           return
         }
-        this._tlm = tlm
+        newBalance = tlm
+        this._miningStage = MiningStage.Cooldown
 
-        reward = Math.round(reward * 10000) / 10000
-        let awakeTime
-        try {
-          await page.waitForSelector(CLS_TXT_COOLDOWN)
-          const cooldown = await this.getCooldown(page)
-          awakeTime = getAwakeTime(cooldown)
-        } catch (err) {
-          awakeTime = getAwakeTime(30 * 60 * 1000)
-        }
-        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
-        const result: IMiningResult = {
-          nextAttemptAt: awakeTime,
-          total: tlm,
-          reward,
-        }
-
-        page.off(PageEmittedEvents.Response, checkBalance)
-        this._miningStage = MiningStage.None
-
-        const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-        this.provider.setData(DATA_KEY_MINING, {
-          total: tlm,
-          rewards: conf.rewards + reward,
-          counter: conf.counter + 1
-        }, true)
-
-        logger.log(`✨ ${reward} TLM mined, total ${tlm} TLM.`)
-        logger.log(`Next mine attempt scheduled at ${awstr}`)
-        this.complete(TaskState.Completed, 'Success', result, awakeTime)
+        updateCooldown()
       } else {
-        const awakeTime = getAwakeTime(30 * 60 * 1000)
-        const awstr = moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')
-        const result: IMiningResult = {
-          nextAttemptAt: awakeTime,
-          total: tlm,
-          reward: 0,
-        }
-        page.off(PageEmittedEvents.Response, checkBalance)
-        logger.log(`Mining failed because of out of resource. Current total ${tlm} TLM.`)
-        logger.log(`Next mine attempt scheduled at ${awstr}`)
-        this.complete(TaskState.Completed, 'Out of resource', result, awakeTime)
+        cooldown = 30 * 60 * 1000
       }
+
+      page.off(PageEmittedEvents.Response, updateBalance)
     }
-    page.on(PageEmittedEvents.Response, checkBalance)
+
+    page.on(PageEmittedEvents.Response, updateBalance)
+
+    confirmMining()
   }
 
   prepare(): boolean {
