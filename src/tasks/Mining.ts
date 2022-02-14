@@ -166,11 +166,11 @@ export default class Mining extends BaseTask<IMiningResult> {
       try {
         const dat = await resp.json()
         tlm = parseFloat(dat.rows[0].balance)
+        if (isNaN(tlm))
+          throw new Error('bad balance')
       } catch (err) {
         return
       }
-
-      if (isNaN(tlm)) return
 
       if (this._balanceInitialed) {
         const change = tlm - this._balance
@@ -180,6 +180,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         }
       } else {
         this._balance = tlm
+        this._balanceChange = 0
         this._balanceInitialed = true
       }
 
@@ -211,7 +212,17 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     logger.log('⛏ Mining...')
     await page.click(CLS_BTN_MINE)
-    this.nextStep(STEP_CLAIM)
+
+    const checkBalanceInit = () => {
+      if (this._balanceInitialed) {
+        this.nextStep(STEP_CLAIM)
+      } else {
+        setTimeout(() => {
+          checkBalanceInit()
+        }, 1000)
+      }
+    }
+    checkBalanceInit()
   }
 
   private async stepClaim() {
@@ -287,7 +298,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     let cooldown = 0
     const confirmMining = () => {
-      if (this._miningStage === MiningStage.Complete) {
+      if (this._miningStage === MiningStage.Complete && this._balanceInitialed) {
         if (this._miningSuccess === false) {
           cooldown = 60 * 60 * 1000
         }
