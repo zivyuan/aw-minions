@@ -354,7 +354,7 @@ export default class Mining extends BaseTask<IMiningResult> {
     this.waitFor('Prepare for mine', async (): Promise<void | boolean> => {
       if (this._readyEventFired)
         return true
-    }, TIME_MINITE)
+    }, 2 * TIME_MINITE)
   }
 
   private determinStage() {

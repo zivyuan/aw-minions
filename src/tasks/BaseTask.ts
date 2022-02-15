@@ -98,7 +98,7 @@ export default class BaseTask<T> implements ITask<T> {
     this.__no = __uuid++
 
     if (!logger) {
-      logger = new Logger(this.name)
+      logger = new Logger('this.name')
     }
   }
 
@@ -222,6 +222,7 @@ export default class BaseTask<T> implements ITask<T> {
         } else {
           const msg = `${name} timeout`
           const akt = getAwakeTime(15 * TIME_MINITE)
+          logger.setScope(this.name)
           logger.log(`${msg}, next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
           this.complete(TaskState.Timeout, msg, null, akt)
         }
