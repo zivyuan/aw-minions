@@ -6,7 +6,6 @@ import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } fro
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
 import moment from "moment";
-import { sleep } from 'sleep'
 import { responseGuard } from "../utils/pputils";
 import { UTCtoGMT } from "../utils/datetime";
 import config from "../config";
@@ -392,14 +391,16 @@ export default class Mining extends BaseTask<IMiningResult> {
           const btnApprove = await popup.$(CLS_BTN_APPROVE)
           if (btnApprove) {
             await popup.click(CLS_BTN_APPROVE)
-            this.nextStep(STEP_CONFIRM)
             return true
           }
         } catch (err) { }
       }
-      popup.once(PageEmittedEvents.DOMContentLoaded, () => {
-        this.waitFor('Wait for approve', clickApproveButton, TIME_10_MINITE)
+      // popup.once(PageEmittedEvents.DOMContentLoaded, () => {
+      // })
+      popup.once(PageEmittedEvents.Close, () => {
+        this.nextStep(STEP_CONFIRM)
       })
+      this.waitFor('Wait for approve', clickApproveButton, TIME_10_MINITE)
     }
     page.once(PageEmittedEvents.Popup, doApprove)
 
