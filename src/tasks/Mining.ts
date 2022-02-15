@@ -291,9 +291,16 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private isDataReady(): boolean {
-    // Make sure special land asset info loaded
+    // Check tools detail
+    const toolsOk = this._bagItems.items.map((item): boolean => {
+      const assets = this._assets.find(ast => ast.asset_id === item.asset_id)
+      return assets ? true : false
+    }).reduce((a, b) => (a && b), true)
+    // Check land detail
     const land = this._assets.find(ast => ast.asset_id === this._mineStatus.current_land)
-    return !!land
+    const landOk = !!land
+
+    return toolsOk && landOk
   }
 
   isReady(): boolean {
@@ -388,10 +395,12 @@ export default class Mining extends BaseTask<IMiningResult> {
         })
         logger.debug('Mine button clicked')
         clicked = new Date().getTime()
-      } else if (clicked && !btn) {
+      }
+      else if (clicked && !btn) {
         this.nextStep(STEP_CLAIM)
         return true
-      } else if (clicked && btn){
+      }
+      else if (clicked && btn) {
         const txt = await btn.evaluate(btn => btn.textContent)
         logger.debug('check if mine btn changed:', txt)
         if ((/^mine$/i).test(txt)) {
@@ -401,6 +410,9 @@ export default class Mining extends BaseTask<IMiningResult> {
             logger.debug('Retry click mine button')
             clicked = 0
           }
+        } else {
+          this.nextStep(STEP_CLAIM)
+          return true
         }
       }
     }

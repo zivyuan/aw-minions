@@ -3,6 +3,7 @@ import Logger from "../Logger";
 import { PAGE_ALIEN_WORLDS, PAGE_ALIEN_WORLDS_TESTER, URL_ALIEN_WORLDS, AW_API_GET_ACCOUNT } from "../utils/constant";
 import { HTTPResponse, PageEmittedEvents } from "puppeteer";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo } from "../types";
+import { random } from "../utils/utils";
 
 export interface IAWLoginResult {
   account: string
@@ -26,11 +27,35 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
     logger.log('Start Alien Worlds login...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
 
+    let clicked = 0
+    const clickLogin = async (): Promise<boolean | void> => {
+      try {
+        const btn = await page.$('.css-yfg7h4 .css-t8p16t')
+        if (!clicked && btn) {
+          await btn.click({ delay: random(2000, 1000) })
+          clicked = new Date().getTime()
+        }
+        else if (clicked && !btn) {
+          return true
+        }
+        else if (clicked && btn) {
+          const txt = await btn.evaluate(btn => btn.textContent)
+          if ((/^login$/i).test(txt)) {
+            const elapsed = new Date().getTime() - clicked
+            if (elapsed > 15000) {
+              // Retry click
+              logger.debug('Retry click login button')
+              clicked = 0
+            }
+          } else {
+            return true
+          }
+        }
+      } catch (err) { }
+    }
+
     const onDomLoaded = async () => {
-      await page.waitForSelector('.css-yfg7h4 .css-t8p16t')
-      await page.click('.css-yfg7h4 .css-t8p16t', {
-        delay: 80
-      })
+      this.waitFor('Wait for click login button', clickLogin)
     }
 
     const onResponse = async (resp: HTTPResponse) => {
@@ -77,7 +102,6 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
       }
       page.goto(URL_ALIEN_WORLDS, opts)
         .catch(err => {
-          console.log('alien page loaded')
           if (this.state === TaskState.Running) {
             // TODO: Page load over time, double check login status
             logger.log(err, err.message)
