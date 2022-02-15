@@ -5,6 +5,8 @@ import Logger from "../Logger"
 import { sleep } from 'sleep'
 import { Browser } from "puppeteer"
 import { IMiningDataProvider } from "../Minion"
+import { getAwakeTime } from "../utils/utils"
+import { TIME_MINITE } from "../utils/constant"
 
 
 export enum TaskState {
@@ -13,6 +15,7 @@ export enum TaskState {
 
   Completed,
   Canceled,
+  Timeout,
   Abort,
   Error,
 }
@@ -192,6 +195,35 @@ export default class BaseTask<T> implements ITask<T> {
     })
   }
 
+  private _waitKeys = {}
+  /**
+   * Wait loop for no block process and controlable
+   * @param name string
+   * @param func function
+   * @param timeout number
+   * @returns
+   */
+  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0) {
+    if (!this._waitKeys[name]) this._waitKeys[name] = new Date().getTime()
+
+    if (this.state !== TaskState.Running || (await func() === true)) {
+      delete this._waitKeys[name]
+      return
+    }
+
+    setTimeout(() => {
+      const elapsed = new Date().getTime() - this._waitKeys[name]
+      if (elapsed > (timeout ? timeout : (config.mining.timeout * 1000))) {
+        const msg = `${name} timeout.`
+        logger.log(msg)
+        this.complete(TaskState.Timeout, msg, null, getAwakeTime(15 * TIME_MINITE))
+        delete this._waitKeys[name]
+      } else {
+        this.waitFor(name, func, timeout)
+      }
+    }, 1000)
+  }
+
   protected waitForSelector(page: Page, selector: string, timeout = 0): Promise<any> {
     const timemark = new Date().getTime()
     let __iid = 0
@@ -237,7 +269,11 @@ export default class BaseTask<T> implements ITask<T> {
     this._reject(message)
   }
 
+  protected async cleanUp() { }
+
   protected complete(state: TaskState, message?: string, data?: T, awake?: number) {
+    this.cleanUp()
+
     this._state = state
     this._message = message || ''
     this._resolve({

@@ -20,6 +20,8 @@ if (fs.existsSync(confJson)) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const conf = <any>merge({
   //
+  timezone: 'Asia/Shanghai',
+  datetimeFormat: 'YYYY-MM-DD HH:MM:ss',
   tickInterval: 500,
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
   browserOption: {
@@ -39,9 +41,10 @@ const conf = <any>merge({
     port: '7890'
   },
   mining: {
-    // Coll down second when resource low
-    outOfResourceDelay: 30 * 60,
-    awakeDelay: 30,
+    // Delay for out of esource, default 1 hour
+    outOfResourceDelay: 60 * 60,
+    // 120 seconds
+    timeout: 120,
   },
   //
   dingding: {

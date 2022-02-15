@@ -14,6 +14,15 @@ export const WAX_API_SESSION = 'https://all-access.wax.io/api/session'
 export const AW_API_PUSH_TRANSACTION = 'https://aw-guard.yeomen.ai/v1/chain/push_transaction'
 export const AW_API_GET_ACCOUNT = 'https://aw-guard.yeomen.ai/v1/chain/get_account'
 export const AW_API_GET_TABLE_ROWS = 'https://aw-guard.yeomen.ai/v1/chain/get_table_rows'
+// https://atomicassets-api.alienworlds.io/atomicassets/v1/assets?page=1&limit=1000&owner=x1dbc.wam&collection_name=alien.worlds
+export const AW_API_ASSETS_INFO = 'https://atomicassets-api.alienworlds.io/atomicassets/v1/assets'
 
 export const URL_ALIEN_WORLDS = 'https://play.alienworlds.io/'
 export const URL_ALIEN_WORLDS_APPROVE = 'https://all-access.wax.io/cloud-wallet/signing/'
+
+// Quick seconds
+export const TIME_MINITE = 60 * 1000
+export const TIME_5_MINITE = 5 * TIME_MINITE
+export const TIME_10_MINITE = 10 * TIME_MINITE
+export const TIME_HOUR = 60 * TIME_MINITE
+export const TIME_DAY = 24 * TIME_HOUR
