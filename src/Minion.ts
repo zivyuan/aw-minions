@@ -53,7 +53,7 @@ export interface IMinionConfig {
   requestFilter?: string[]
 }
 
-const logger = new Logger()
+let logger
 export default class Minion implements IMiningDataProvider {
   private browser: Browser
   private config: IMinionConfig = {
@@ -74,6 +74,10 @@ export default class Minion implements IMiningDataProvider {
 
 
   constructor(account: string, username?: string, password?: string) {
+    if (!logger) {
+      logger = new Logger('Minion 🍌')
+    }
+
     this._data = {
       [DATA_KEY_COOKIE]: [],
       [DATA_KEY_ACCOUNT_INFO]: {
@@ -113,7 +117,6 @@ export default class Minion implements IMiningDataProvider {
       this.saveData()
     }
 
-    logger.setScope('Minion')
     logger.log('use useragent: ', this._userAgent)
   }
 

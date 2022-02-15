@@ -42,11 +42,6 @@ interface IBotArguments {
    */
   endpoint: string
   /**
-   * Social network openid surpport
-   * !!! NOT IMPLEMENTED YET !!!
-   */
-  platform: string
-  /**
    * Show devtool when page open
    */
   dev: boolean
@@ -56,9 +51,9 @@ interface IBotArguments {
   enablecss: boolean
 }
 
+// =================================
 
-// Just initialize
-const logger = new Logger('Main')
+let logger
 DingBot.getInstance(config.dingding)
 
 const getProxy = (proxy): string => {
@@ -138,14 +133,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "The id of the account",
       array: true,
     })
-    .option("platform", {
-      alias: "P",
-      describe: "Social platform",
-      choices: ["github"],
-      default: "github",
-    })
     .option("endpoint", {
-      describe: "Develop option for fast load"
+      describe: "Use a preopened Chromium as endpoint to improve development"
     })
     .option("accounts", {
       describe: "Account pool json file",
@@ -154,8 +143,9 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
       describe: "Use SwitchOmega proxy",
     })
     .option("dev", {
-      describe: "Use SwitchOmega proxy",
+      describe: "Enable develop settings",
       boolean: true,
+      default: false,
     })
     // enablecss always set to true
     // Disable css will cause page hang up. Ignore this optmize feature
@@ -177,13 +167,17 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
     .demandOption(["account"])
     .help("help").argv;
 
+  // Just initialize
+  Logger.debug = argv.dev
+  Logger.account = argv.account[0].trim()
+  logger = new Logger('Main')
+
   if (argv.dev) {
     if (fs.existsSync('./cache/window-lock')) {
       fs.unlinkSync('./cache/window-lock')
     }
   }
 
-  Logger.account = argv.account[0].trim()
   if (argv.username.length > 1) {
     logger.log('Alien World\'s minions are weaking...')
   } else {

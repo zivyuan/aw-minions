@@ -21,7 +21,7 @@ if (fs.existsSync(confJson)) {
 const conf = <any>merge({
   //
   timezone: 'Asia/Shanghai',
-  datetimeFormat: 'YYYY-MM-DD HH:MM:ss',
+  datetimeFormat: 'YYYY-MM-DD HH:mm:ss',
   tickInterval: 500,
   taskPhaseTimeout: 365 * 24 * 60 * 60 * 1000,
   browserOption: {

@@ -8,11 +8,15 @@ export interface IReportResult {
   state: number
 }
 
-const logger = new Logger('Report')
+let logger
 
 export default class Report extends BaseTask<IReportResult> {
   constructor() {
-    super('Report')
+    super('Reporter')
+
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
 
     this.registerStep('report', this.stepReport, true);
   }

@@ -19,7 +19,7 @@ const STEP_SAVE_COOKIE = 'save_cookie'
 const SEL_IPT_USERNAME = '.button-container input[name="userName"]'
 const SEL_IPT_PASSWORD = '.button-container input[name="password"]'
 
-const logger = new Logger()
+let logger
 export class WaxLogin extends BaseTask<IWaxLoginResult> {
 
   constructor() {
@@ -29,7 +29,9 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     this.registerStep(STEP_FILL_FORM, this.stepFillForm)
     this.registerStep(STEP_SAVE_COOKIE, this.stepSaveSession)
 
-    logger.setScope(this.name)
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
   }
 
   private async stepAutoLogin() {

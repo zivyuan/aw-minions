@@ -9,14 +9,17 @@ export interface IAWLoginResult {
   tlm: number
 }
 
-const logger = new Logger()
+let logger
 export default class AWLogin extends BaseTask<IAWLoginResult> {
   constructor() {
     super('AW Login')
 
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
+
     this.registerStep('login', this.stepLogin, true)
 
-    logger.setScope(this.name)
   }
 
   private async stepLogin() {

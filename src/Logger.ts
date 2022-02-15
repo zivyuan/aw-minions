@@ -7,11 +7,21 @@ let _scopeMaxLen = 10
 export default class Logger {
   // Wax block chain account
   static account = ''
+  static debug = false
 
   private _scope: string
+  public debug: (...args) => void
 
   constructor(scope?: string) {
     this.setScope(scope || '-')
+
+    if (Logger.debug) {
+      this.debug = (...args) => {
+        console.log.apply(null, args)
+      }
+    } else {
+      this.debug = () => { }
+    }
   }
 
   setScope(scope: string) {

@@ -13,11 +13,15 @@ export interface IStackRewardsResult {
   staked: number
 }
 
-const logger = new Logger('Claim Stake')
+let logger
 
 export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
   constructor() {
     super('ClaimRewards')
+
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
 
     this.registerStep('claim', this.stepClaim, true)
   }
