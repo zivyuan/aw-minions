@@ -1,7 +1,7 @@
 import BaseTask, { TaskState } from "./BaseTask";
 import { getAwakeTime, random } from "../utils/utils";
 import Logger from "../Logger";
-import { PAGE_ALIEN_WORLDS, AW_API_GET_TABLE_ROWS, AW_API_PUSH_TRANSACTION, TIME_5_MINITE, AW_API_ASSETS_INFO, TIME_MINITE, TIME_10_MINITE } from "../utils/constant";
+import { PAGE_ALIEN_WORLDS, AW_API_GET_TABLE_ROWS, AW_API_PUSH_TRANSACTION, TIME_5_MINITE, AW_API_ASSETS_INFO, TIME_MINITE, TIME_10_MINITE, TIME_HALF_HOUR } from "../utils/constant";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } from "../types";
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
@@ -21,7 +21,7 @@ const STEP_CLAIM = 'claim'
 const STEP_CONFIRM = 'comfirm'
 
 
-const logger = new Logger('Mining')
+let logger
 
 export interface IMiningResult {
   nextAttemptAt: number
@@ -61,12 +61,17 @@ export default class Mining extends BaseTask<IMiningResult> {
     locked: 0
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _mineStatus: any = null
+  private _mineStatus: any = {}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _transaction: any = null
+  private _transactionOk = false
 
   constructor() {
     super('Mining')
+
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
 
     this.registerStep(STEP_PREPARE, this.stepPrepare, true)
     this.registerStep(STEP_MINE, this.stepMine)
@@ -75,7 +80,10 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private getCooldown(): number {
-    const tools = ([]).concat(this._bagItems.items)
+    const tools = this._bagItems.items.map(item => {
+      const assets = this._assets.find(ast => ast.asset_id === item.asset_id)
+      return assets ? assets : item
+    })
     if (tools.length >= 3) {
       tools.sort((a, b) => (a.data.delay > b.data.delay ? 1 : -1))
     }
@@ -207,37 +215,36 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (tlm !== this._balance) {
       this._balanceChanged = tlm - this._balance
       this._balance = tlm
-    }
 
-    this._balanceUpdated = true
-    this.fireReadyEvent()
+      logger.debug(`update balance: total ${this._balance.toFixed(4)} tlm, changed ${this._balanceChanged.toFixed(4)} tlm`)
+      this._balanceUpdated = true
+      this.fireReadyEvent()
+    }
   }
 
   private updateAssetsInfo = async (resp: HTTPResponse) => {
     if (!await responseGuard(resp, [AW_API_ASSETS_INFO, this.guardAssetsInfo]))
       return
 
+    const count = this._assets.length
     const dat = await resp.json()
-    this._assets = this._assets.concat(dat.data.filter(item =>
+    const newAssets = dat.data.filter(item =>
       (!this._assets.find(_t => _t.asset_id === item.asset_id))
-    ))
+    )
+    this._assets = this._assets.concat(newAssets)
 
-    // link to bag items
-    this._bagItems.items = this._bagItems.items.map(item => {
-      const cached = this._assets.find(ast => ast.asset_id === item.asset_id)
-      return cached ? {
-        ...item,
-        ...cached
-      } : item
-    })
-    this._assetsUpdated = true
-    this.fireReadyEvent()
+    if (this._assets.length !== count) {
+      logger.debug('update assets', count, this._assets)
+      this._assetsUpdated = true
+      this.fireReadyEvent()
+    }
   }
 
   private updateBagInfo = async (resp: HTTPResponse) => {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardBagInfo]))
       return
 
+    const itemids = this._bagItems.items.map(item => item.asset_id)
     const dat = await resp.json()
     const items = dat.rows
       .map(item => ({
@@ -249,8 +256,12 @@ export default class Mining extends BaseTask<IMiningResult> {
       items: [],
       locked: 0
     }
-    this._bagUpdated = true
-    this.fireReadyEvent()
+    const itemidsn = this._bagItems.items.map(item => item.asset_id)
+    if (itemids.join() !== itemidsn.join()) {
+      logger.debug('update bag', this._bagItems)
+      this._bagUpdated = true
+      this.fireReadyEvent()
+    }
   }
 
   private updateMineStatus = async (resp: HTTPResponse) => {
@@ -258,9 +269,13 @@ export default class Mining extends BaseTask<IMiningResult> {
       return
 
     const dat = await resp.json()
-    this._mineStatus = dat.rows[0]
-    this._mineStatusUpdated = true
-    this.fireReadyEvent()
+    if (dat.rows[0].last_mine !== this._mineStatus.last_mine) {
+      this._mineStatus = dat.rows[0]
+
+      logger.debug('update mine status', this._mineStatus)
+      this._mineStatusUpdated = true
+      this.fireReadyEvent()
+    }
   }
 
   private updateTransaction = async (resp: HTTPResponse) => {
@@ -269,21 +284,23 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     const dat = await resp.json()
     this._transaction = dat
+    this._transactionOk = resp.ok()
+    logger.debug('update trasaction', this._transaction)
     this._transactionUpdated = true
     this.fireReadyEvent()
   }
 
   private isDataReady(): boolean {
-    const tools = this._bagItems.items.filter(tool => !!tool.data)
+    // Make sure special land asset info loaded
     const land = this._assets.find(ast => ast.asset_id === this._mineStatus.current_land)
-    return (tools.length > 0) && (!!land)
+    return !!land
   }
 
   isReady(): boolean {
     if (!this._pageReady) return false
     if (!this._balanceUpdated) return false
-    if (!this._assetsUpdated) return false
     if (!this._bagUpdated) return false
+    if (!this._assetsUpdated) return false
     if (!this._mineStatusUpdated) return false
     if (!this.isDataReady()) return false
     return true
@@ -298,6 +315,7 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private updatePageStatus = () => {
+    logger.debug('dom content loaded')
     this._pageReady = true
   }
 
@@ -334,15 +352,13 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     // 1 minute for prepare, otherwise cancel task
     this.waitFor('Prepare for mine', async (): Promise<void | boolean> => {
-      if (this.isReady())
+      if (this._readyEventFired)
         return true
     }, TIME_MINITE)
   }
 
   private determinStage() {
     const lastMine = UTCtoGMT(this._mineStatus.last_mine)
-
-    // Calcalute cooldown time
     const cooldown = this.getCooldown()
     const nextMineTime = lastMine.getTime() + cooldown + random(5000, 1000)
     const currentTime = new Date().getTime()
@@ -351,28 +367,47 @@ export default class Mining extends BaseTask<IMiningResult> {
       this.nextStep(STEP_MINE)
     } else {
       const akt = getAwakeTime(nextMineTime - currentTime)
-      logger.log(`☕ Tools cooldown, next mine attempt at ${moment(akt).format(config.datetimeFormat)}`)
+      logger.log(`🍸 Tools cooldown, next mine attempt at ${moment(akt).format(config.datetimeFormat)}`)
       this.complete(TaskState.Canceled, 'tools cooldown', null, akt)
     }
   }
 
 
   private async stepMine() {
-    logger.log('⛏ Mining...')
+    logger.log('🚂 Mining...')
 
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
     await page.bringToFront()
 
-    await page.waitForSelector(CLS_BTN_MINE)
-    await page.click(CLS_BTN_MINE)
-
-    this._balanceUpdated = false
-    this._mineStatusUpdated = false
-    this.nextStep(STEP_CLAIM)
+    let clicked = 0
+    const clickMine = async (): Promise<boolean | void> => {
+      const btn = await page.$(CLS_BTN_MINE)
+      if (!clicked && btn) {
+        await btn.click({
+          delay: random(2000, 1000)
+        })
+        logger.debug('Mine button clicked')
+        clicked = new Date().getTime()
+      } else if (clicked && !btn) {
+        this.nextStep(STEP_CLAIM)
+        return true
+      } else if (clicked && btn){
+        const txt = await btn.evaluate(btn => btn.textContent)
+        logger.debug('check if mine btn changed:', txt)
+        if ((/^mine$/i).test(txt)) {
+          const elapsed = new Date().getTime() - clicked
+          if (elapsed > 15000) {
+            // Retry click
+            logger.debug('Retry click mine button')
+            clicked = 0
+          }
+        }
+      }
+    }
+    this.waitFor('Wait for mine button', clickMine, 3 * TIME_MINITE)
   }
 
   private async stepClaim() {
-    logger.log('🐝 Claiming...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
 
     const doApprove = async (popup: Page) => {
@@ -384,7 +419,8 @@ export default class Mining extends BaseTask<IMiningResult> {
             popup.close()
             const msg = 'Session expried, login required.'
             logger.log(msg)
-            this.complete(TaskState.Canceled, msg, null, 30 * TIME_MINITE)
+            const akt = getAwakeTime(30 * TIME_MINITE)
+            this.complete(TaskState.Canceled, msg, null, akt)
             return true
           }
 
@@ -408,10 +444,12 @@ export default class Mining extends BaseTask<IMiningResult> {
       try {
         const btn = await page.$(CLS_BTN_CLAIM)
         if (btn) {
+          logger.log('🐝 Claiming...')
+          this._balanceUpdated = false
+          this._mineStatusUpdated = false
           await btn.click({
             delay: random(1600, 1000)
           })
-          // Stop loop
           return true
         }
       } catch (err) { }
@@ -420,35 +458,47 @@ export default class Mining extends BaseTask<IMiningResult> {
   }
 
   private async stepConfirm() {
-    logger.log('🐝 Confirming...')
+    logger.log('📜 Confirming...')
     const confirmMining = async (): Promise<void | boolean> => {
-      if (!this._mineStatusUpdated) return
       if (!this._transactionUpdated) return
-      if (!this._balanceUpdated) return
+      if (this._transactionOk && !this._mineStatusUpdated) return
+      if (this._transactionOk && !this._balanceUpdated) return
 
-      if (this._transaction.code !== 200) {
-        const message = this._transaction.error.details[0].message
-        const akt = getAwakeTime(config.mining.outOfResourceDelay * 1000)
-        logger.log(`❌ ${message}.`)
-        logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
-        this.complete(TaskState.Completed, message, null, akt)
-      } else {
+      if (this._transactionOk) {
         const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
         const cooldown = this.getCooldown()
-        const akt = getAwakeTime(lastMineTime.getTime() + cooldown)
+        const akt = getAwakeTime(lastMineTime.getTime() + cooldown - new Date().getTime())
         const rst = {
           nextAttemptAt: akt,
           total: this._balance,
           reward: this._balanceChanged,
         }
-        logger.log(`💎 ${this._balanceChanged} TLM mined, current total ${this._balance} TLM.`)
+        logger.log(`💎 ${this._balanceChanged.toFixed(4)} TLM mined, current total ${this._balance.toFixed(4)} TLM.`)
         logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
         this.complete(TaskState.Completed, 'success', rst, akt)
+      } else {
+        const message = this._transaction.error.details[0].message
+        const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
+        const delay = lastMineTime.getTime() + config.mining.outOfResourceDelay * 1000 - new Date().getTime()
+        const akt = getAwakeTime(delay < TIME_HALF_HOUR ? TIME_HALF_HOUR : delay)
+        logger.log(`❌ ${message}.`)
+        logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
+        this.complete(TaskState.Completed, message, null, akt)
       }
 
       return true
     }
-    this.waitFor('Wait for confirm', confirmMining)
+    this.waitFor('Wait for confirm', confirmMining, 0, () => {
+      if (this._transactionOk) {
+        logger.log('❓ Transaction seems ok, but balance and miner status not change.')
+        logger.log('❓ tx:', this._transaction.transaction_id)
+      } else {
+        logger.log('Confirm mining status timeout, please check network.')
+      }
+      const akt = getAwakeTime(15 * TIME_MINITE)
+      logger.log(`⏰ Next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
+      this.complete(TaskState.Timeout, 'Confirming timeout', null, akt)
+    })
   }
 
   protected async cleanUp() {

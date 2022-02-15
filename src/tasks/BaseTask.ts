@@ -7,6 +7,7 @@ import { Browser } from "puppeteer"
 import { IMiningDataProvider } from "../Minion"
 import { getAwakeTime } from "../utils/utils"
 import { TIME_MINITE } from "../utils/constant"
+import moment from "moment"
 
 
 export enum TaskState {
@@ -69,7 +70,7 @@ export interface ITask<T> {
 export type TaskClass = typeof BaseTask & { meta: { [prop: string]: any } }
 
 let __uuid = 1
-const logger = new Logger()
+let logger
 export default class BaseTask<T> implements ITask<T> {
   private __no: number
   private _name = 'Task'
@@ -96,7 +97,9 @@ export default class BaseTask<T> implements ITask<T> {
     this._phaseTimeMark = new Date().getTime()
     this.__no = __uuid++
 
-    logger.setScope(name)
+    if (!logger) {
+      logger = new Logger(this.name)
+    }
   }
 
   get no(): number {
@@ -203,7 +206,7 @@ export default class BaseTask<T> implements ITask<T> {
    * @param timeout number
    * @returns
    */
-  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0) {
+  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => void) {
     if (!this._waitKeys[name]) this._waitKeys[name] = new Date().getTime()
 
     if (this.state !== TaskState.Running || (await func() === true)) {
@@ -214,9 +217,14 @@ export default class BaseTask<T> implements ITask<T> {
     setTimeout(() => {
       const elapsed = new Date().getTime() - this._waitKeys[name]
       if (elapsed > (timeout ? timeout : (config.mining.timeout * 1000))) {
-        const msg = `${name} timeout.`
-        logger.log(msg)
-        this.complete(TaskState.Timeout, msg, null, getAwakeTime(15 * TIME_MINITE))
+        if (timeoutHandle) {
+          timeoutHandle()
+        } else {
+          const msg = `${name} timeout`
+          const akt = getAwakeTime(15 * TIME_MINITE)
+          logger.log(`${msg}, next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
+          this.complete(TaskState.Timeout, msg, null, akt)
+        }
         delete this._waitKeys[name]
       } else {
         this.waitFor(name, func, timeout)

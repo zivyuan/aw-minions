@@ -17,7 +17,7 @@ export default class Logger {
 
     if (Logger.debug) {
       this.debug = (...args) => {
-        console.log.apply(null, args)
+        console.log.apply(null, ([{_:scope}]).concat(args))
       }
     } else {
       this.debug = () => { }

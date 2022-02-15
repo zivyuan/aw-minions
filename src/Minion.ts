@@ -75,7 +75,7 @@ export default class Minion implements IMiningDataProvider {
 
   constructor(account: string, username?: string, password?: string) {
     if (!logger) {
-      logger = new Logger('Minion 🍌')
+      logger = new Logger('minion')
     }
 
     this._data = {
@@ -117,7 +117,7 @@ export default class Minion implements IMiningDataProvider {
       this.saveData()
     }
 
-    logger.log('use useragent: ', this._userAgent)
+    logger.debug('Useragent: ', this._userAgent)
   }
 
   get state(): MiningState {
