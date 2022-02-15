@@ -85,9 +85,10 @@ export default class Mining extends BaseTask<IMiningResult> {
       return assets ? assets : item
     })
     if (tools.length >= 3) {
-      tools.sort((a, b) => (a.data.delay > b.data.delay ? 1 : -1))
+      tools.sort((a, b) => (a.data.delay < b.data.delay ? 1 : -1))
+      tools.splice(2, tools.length - 2)
     }
-    const sum = tools.map((item, idx) => idx < 2 ? item.data.delay : 0).reduce((a, b) => a + b)
+    const sum = tools.map(item => item.data.delay).reduce((a, b) => a + b)
     const land = this._assets.find(ast => ast.asset_id === this._mineStatus.current_land)
     const cooldown = sum * (land.data.delay / 10)
     return cooldown * 1000
@@ -329,6 +330,8 @@ export default class Mining extends BaseTask<IMiningResult> {
   private async stepPrepare() {
     logger.log('🔧 Prepare...')
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+    await page.bringToFront()
+
     page.on(PageEmittedEvents.DOMContentLoaded, this.updatePageStatus)
     page.on(PageEmittedEvents.Response, this.updateBalance)
     page.on(PageEmittedEvents.Response, this.updateAssetsInfo)
@@ -382,9 +385,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
   private async stepMine() {
     logger.log('🚂 Mining...')
-
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
-    await page.bringToFront()
 
     let clicked = 0
     const clickMine = async (): Promise<boolean | void> => {
@@ -476,10 +477,12 @@ export default class Mining extends BaseTask<IMiningResult> {
       if (this._transactionOk && !this._mineStatusUpdated) return
       if (this._transactionOk && !this._balanceUpdated) return
 
+      const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
+      const now = new Date()
       if (this._transactionOk) {
-        const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
         const cooldown = this.getCooldown()
-        const akt = getAwakeTime(lastMineTime.getTime() + cooldown - new Date().getTime())
+        const akt = getAwakeTime(lastMineTime.getTime() + cooldown - now.getTime())
+        logger.debug('next attempt:', lastMineTime, cooldown, now, new Date(akt))
         const rst = {
           nextAttemptAt: akt,
           total: this._balance,
@@ -490,8 +493,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         this.complete(TaskState.Completed, 'success', rst, akt)
       } else {
         const message = this._transaction.error.details[0].message
-        const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
-        const delay = lastMineTime.getTime() + config.mining.outOfResourceDelay * 1000 - new Date().getTime()
+        const delay = lastMineTime.getTime() + config.mining.outOfResourceDelay * 1000 - now.getTime()
         const akt = getAwakeTime(delay < TIME_HALF_HOUR ? TIME_HALF_HOUR : delay)
         logger.log(`❌ ${message}.`)
         logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
