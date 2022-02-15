@@ -391,7 +391,7 @@ export default class Mining extends BaseTask<IMiningResult> {
       } else if (clicked && !btn) {
         this.nextStep(STEP_CLAIM)
         return true
-      } else if (clicked && btn){
+      } else if (clicked && btn) {
         const txt = await btn.evaluate(btn => btn.textContent)
         logger.debug('check if mine btn changed:', txt)
         if ((/^mine$/i).test(txt)) {
@@ -401,6 +401,8 @@ export default class Mining extends BaseTask<IMiningResult> {
             logger.debug('Retry click mine button')
             clicked = 0
           }
+        } else {
+          return true
         }
       }
     }
