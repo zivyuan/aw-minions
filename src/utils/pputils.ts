@@ -1,5 +1,4 @@
 import { HTTPResponse, Page } from "puppeteer"
-import Logger from "../Logger"
 
 export const disableTimeout = async (page: Page) => {
   await page.setDefaultNavigationTimeout(0)

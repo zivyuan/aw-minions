@@ -77,11 +77,13 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
         const ep = fs.readFileSync('.endpoint').toString().trim()
         option.browserWSEndpoint = ep
       }
+      logger.debug('Connect options: ', option)
       browser = await puppeteer.connect(option);
     } else {
       if (argv.proxy) {
         option.args.push(`--proxy-server=${getProxy(argv.proxy)}`)
       }
+      logger.debug('Launch options: ', option)
       browser = await puppeteer.launch(option);
     }
 
