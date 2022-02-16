@@ -1,4 +1,5 @@
 import { HTTPResponse, Page } from "puppeteer"
+import Logger from "../Logger"
 
 export const disableTimeout = async (page: Page) => {
   await page.setDefaultNavigationTimeout(0)
@@ -23,6 +24,17 @@ export const responseGuard = async (
   resp: HTTPResponse,
   guard: string | RegExp | ResponseGuardFilter | ResponseGuardGroup
 ): Promise<boolean> => {
+
+  const req = resp.request()
+  const headers = req.headers()
+  if (headers['Access-Control-Request-Method']
+    || headers['Access-Control-Request-Headers']
+    || headers['access-control-request-method']
+    || headers['access-control-request-headers']) {
+    // A preflight request has no response body
+    (new Logger('pputil')).log(':: Preflight request match:', req.url)
+    return false
+  }
 
   if (guard instanceof Array) {
     for (let i = 0; i < guard.length; i++) {
