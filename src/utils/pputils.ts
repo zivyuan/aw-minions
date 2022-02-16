@@ -32,7 +32,8 @@ export const responseGuard = async (
     || headers['access-control-request-method']
     || headers['access-control-request-headers']) {
     // A preflight request has no response body
-    (new Logger('pputil')).log(':: Preflight request match:', req.url)
+    const url = await req.url()
+    ;(new Logger('pputil')).debug('Preflight request match:', url)
     return false
   }
 
