@@ -360,25 +360,24 @@ export default class Mining extends BaseTask<IMiningResult> {
         // this.complete(TaskState.Canceled, err.message, null, getAwakeTime(TIME_MINITE))
       })
 
-    // 1 minute for prepare, otherwise cancel task
-    this.waitFor('Prepare for mine',
-      async (): Promise<void | boolean> => {
-        if (this._readyEventFired)
-          return true
-      },
-      2 * TIME_MINITE,
-      async (): Promise<void | boolean> => {
-        try {
-          const btn = await page.$('.css-yfg7h4 .css-t8p16t')
-          if (btn) {
-            logger.debug('Stucked at login page, try auto login...')
-            await btn.click()
-            // Keep waiting
-            return false
-          } else {
-          }
-        } catch (err) { }
-      })
+    // Wait two miniute for page ready
+    const waitReadyEvent = async (): Promise<void | boolean> => {
+      if (this._readyEventFired)
+        return true
+    }
+    const readyEventTimeout = async (): Promise<void | boolean> => {
+      try {
+        const btn = await page.$('.css-yfg7h4 .css-t8p16t')
+        if (btn) {
+          logger.debug('Stucked at login page, try auto login...')
+          await btn.click()
+          // Keep waiting
+          return false
+        } else {
+        }
+      } catch (err) { }
+    }
+    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE, readyEventTimeout)
   }
 
   private determinStage() {
@@ -516,7 +515,7 @@ export default class Mining extends BaseTask<IMiningResult> {
 
       return true
     }
-    this.waitFor('Wait for confirm', confirmMining, 0, () => {
+    const confirmTimeout = async (): Promise<void | boolean> => {
       if (this._transactionOk) {
         logger.log('❓ Transaction seems ok, but balance and miner status not change.')
         logger.log('❓ tx:', this._transaction.transaction_id)
@@ -526,7 +525,8 @@ export default class Mining extends BaseTask<IMiningResult> {
       const akt = getAwakeTime(15 * TIME_MINITE)
       logger.log(`⏰ Next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
       this.complete(TaskState.Timeout, 'Confirming timeout', null, akt)
-    })
+    }
+    this.waitFor('Wait for confirm', confirmMining, 0, confirmTimeout)
   }
 
   protected async cleanUp() {
