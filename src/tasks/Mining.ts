@@ -211,9 +211,10 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardBalance]))
       return
 
-    const dat = await safeGetJson(resp)
-    if (!dat) return console.log('error data ', await resp.url())
+    if (!resp.ok())
+      return
 
+    const dat = await resp.json()
     const tlm = parseFloat(dat.rows[0].balance)
     if (tlm !== this._balance) {
       this._balanceChanged = tlm - this._balance
@@ -229,10 +230,11 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_ASSETS_INFO, this.guardAssetsInfo]))
       return
 
-    const count = this._assets.length
-    const dat = await safeGetJson(resp)
-    if (!dat) return console.log('error data ', await resp.url())
+    if (!resp.ok())
+      return
 
+    const dat = await resp.json()
+    const count = this._assets.length
     const newAssets = dat.data.filter(item =>
       (!this._assets.find(_t => _t.asset_id === item.asset_id))
     )
@@ -249,10 +251,11 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardBagInfo]))
       return
 
-    const itemids = this._bagItems.items.map(item => item.asset_id)
-    const dat = await safeGetJson(resp)
-    if (!dat) return console.log('error data ', await resp.url())
+    if (!resp.ok())
+      return
 
+    const dat = await resp.json()
+    const itemids = this._bagItems.items.map(item => item.asset_id)
     const items = dat.rows
       .map(item => ({
         key: item.account,
@@ -275,9 +278,10 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardMineStatus]))
       return
 
-    const dat = await safeGetJson(resp)
-    if (!dat) return console.log('error data ', await resp.url())
+    if (!resp.ok())
+      return
 
+    const dat = await resp.json()
     if (dat.rows[0].last_mine !== this._mineStatus.last_mine) {
       this._mineStatus = dat.rows[0]
 
@@ -291,10 +295,13 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, AW_API_PUSH_TRANSACTION))
       return
 
-    const dat = await safeGetJson(resp)
-    if (!dat) return console.log('error data ', await resp.url())
+    if (!resp.ok()) {
+      logger.log('update trasaction fail with status: ', resp.status(), resp.statusText())
+      this.nextStep(STEP_CONFIRM)
+      return
+    }
 
-    this._transaction = dat
+    this._transaction = await resp.json()
     this._transactionOk = resp.ok()
     logger.debug('update trasaction', this._transaction)
     this._transactionUpdated = true
@@ -351,8 +358,6 @@ export default class Mining extends BaseTask<IMiningResult> {
     page.reload({
       timeout: TIME_5_MINITE
     })
-      // .then(() => {
-      // })
       .catch(err => {
         logger.log('Page reload error: ')
         logger.log(err.message)
@@ -372,22 +377,20 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     // Wait two miniute for page ready
     const waitReadyEvent = async (): Promise<void | boolean> => {
+      try {
+        // Sometimes page will not do auto login,
+        //  be stucked in start page
+        const btn = await page.$('span.css-rrm59m')
+        if (btn) {
+          await btn.click()
+        }
+      } catch (err) { }
+
       if (this._readyEventFired)
         return true
     }
-    const readyEventTimeout = async (): Promise<void | boolean> => {
-      try {
-        const btn = await page.$('.css-yfg7h4 .css-t8p16t')
-        if (btn) {
-          logger.debug('Stucked at login page, try auto login...')
-          await btn.click()
-          // Keep waiting
-          return false
-        } else {
-        }
-      } catch (err) { }
-    }
-    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE, readyEventTimeout)
+
+    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE)
   }
 
   private determinStage() {
@@ -500,9 +503,9 @@ export default class Mining extends BaseTask<IMiningResult> {
       if (this._transactionOk && !this._mineStatusUpdated) return
       if (this._transactionOk && !this._balanceUpdated) return
 
-      const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
-      const now = new Date()
       if (this._transactionOk) {
+        const now = new Date()
+        const lastMineTime = UTCtoGMT(this._mineStatus.last_mine)
         const cooldown = this.getCooldown()
         const akt = getAwakeTime(lastMineTime.getTime() + cooldown - now.getTime())
         logger.debug('next attempt:', lastMineTime, cooldown, now, new Date(akt))
@@ -516,8 +519,7 @@ export default class Mining extends BaseTask<IMiningResult> {
         this.complete(TaskState.Completed, 'success', rst, akt)
       } else {
         const message = this._transaction.error.details[0].message
-        const delay = lastMineTime.getTime() + config.mining.outOfResourceDelay * 1000 - now.getTime()
-        const akt = getAwakeTime(delay < TIME_HALF_HOUR ? TIME_HALF_HOUR : delay)
+        const akt = getAwakeTime(45 * TIME_MINITE)
         logger.log(`❌ ${message}.`)
         logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
         this.complete(TaskState.Completed, message, null, akt)

@@ -199,8 +199,8 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   const minion = new Minion(argv.account[0], argv.username[0], argv.password[0])
   minion.prepare(browser, {
     enableCSS: true,
-    enableImage: argv.enableimage,
-    enableFont: argv.enablefont
+    enableImage: argv.dev || argv.enableimage,
+    enableFont: argv.dev || argv.enablefont
   })
   minion.addTask(WaxLogin)
   minion.addTask(AWLogin)

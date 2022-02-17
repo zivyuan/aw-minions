@@ -223,6 +223,7 @@ export default class BaseTask<T> implements ITask<T> {
           if (rst === false) {
             this._waitKeys[name] = new Date().getTime()
             this.waitFor(name, func, timeout)
+            return
           }
         } else {
           const msg = `${name} timeout`
