@@ -349,6 +349,7 @@ export default class Mining extends BaseTask<IMiningResult> {
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
     await page.bringToFront()
 
+    let pageLoaded = false
     page.on(PageEmittedEvents.DOMContentLoaded, this.updatePageStatus)
     page.on(PageEmittedEvents.Response, this.updateBalance)
     page.on(PageEmittedEvents.Response, this.updateAssetsInfo)
@@ -358,6 +359,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     page.reload({
       timeout: TIME_5_MINITE
     })
+      .then(() => {
+        pageLoaded = true
+      })
       .catch(err => {
         logger.log('Page reload error: ')
         logger.log(err.message)
@@ -377,14 +381,16 @@ export default class Mining extends BaseTask<IMiningResult> {
 
     // Wait two miniute for page ready
     const waitReadyEvent = async (): Promise<void | boolean> => {
-      try {
-        // Sometimes page will not do auto login,
-        //  be stucked in start page
-        const btn = await page.$('span.css-rrm59m')
-        if (btn) {
-          await btn.click()
-        }
-      } catch (err) { }
+      if (pageLoaded) {
+        try {
+          // Sometimes page will not do auto login,
+          //  be stucked in start page
+          const btn = await page.$('span.css-rrm59m')
+          if (btn) {
+            await btn.click()
+          }
+        } catch (err) { }
+      }
 
       if (this._readyEventFired)
         return true
