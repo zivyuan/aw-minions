@@ -201,12 +201,13 @@ export default class BaseTask<T> implements ITask<T> {
   private _waitKeys = {}
   /**
    * Wait loop for no block process and controlable
-   * @param name string
+   * @param name A short describe
    * @param func function
    * @param timeout number
+   * @param timeoutHandle Custom timeout handle, return false to continue to wait
    * @returns
    */
-  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => void) {
+  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => Promise<void | boolean>) {
     if (!this._waitKeys[name]) this._waitKeys[name] = new Date().getTime()
 
     if (this.state !== TaskState.Running || (await func() === true)) {
@@ -214,11 +215,15 @@ export default class BaseTask<T> implements ITask<T> {
       return
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const elapsed = new Date().getTime() - this._waitKeys[name]
       if (elapsed > (timeout ? timeout : (config.mining.timeout * 1000))) {
         if (timeoutHandle) {
-          timeoutHandle()
+          const rst = await timeoutHandle()
+          if (rst === false) {
+            this._waitKeys[name] = new Date().getTime()
+            this.waitFor(name, func, timeout)
+          }
         } else {
           const msg = `${name} timeout`
           const akt = getAwakeTime(15 * TIME_MINITE)

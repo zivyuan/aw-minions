@@ -361,10 +361,24 @@ export default class Mining extends BaseTask<IMiningResult> {
       })
 
     // 1 minute for prepare, otherwise cancel task
-    this.waitFor('Prepare for mine', async (): Promise<void | boolean> => {
-      if (this._readyEventFired)
-        return true
-    }, 2 * TIME_MINITE)
+    this.waitFor('Prepare for mine',
+      async (): Promise<void | boolean> => {
+        if (this._readyEventFired)
+          return true
+      },
+      2 * TIME_MINITE,
+      async (): Promise<void | boolean> => {
+        try {
+          const btn = await page.$('.css-yfg7h4 .css-t8p16t')
+          if (btn) {
+            logger.debug('Stucked at login page, try auto login...')
+            await btn.click()
+            // Keep waiting
+            return false
+          } else {
+          }
+        } catch (err) { }
+      })
   }
 
   private determinStage() {
