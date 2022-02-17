@@ -31,13 +31,23 @@ export const responseGuard = async (
     || headers['access-control-request-method']
     || headers['access-control-request-headers']) {
     // A preflight request has no response body
+    try {
+      console.log('ignored preflight:', await req.url())
+    } catch (err) {
+      console.log('ignored preflight.')
+    }
     return false
   }
 
   if (guard instanceof Array) {
-    for (let i = 0; i < guard.length; i++) {
-      const rst = await responseGuard(resp, guard[i])
-      if (!rst) return false
+    try {
+      for (let i = 0; i < guard.length; i++) {
+        const rst = await responseGuard(resp, guard[i])
+        if (!rst) return false
+      }
+    } catch (err) {
+      console.log('response guard error:', err)
+      return false
     }
 
     return true
