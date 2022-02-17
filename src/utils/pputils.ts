@@ -32,22 +32,24 @@ export const responseGuard = async (
     || headers['access-control-request-headers']) {
     // A preflight request has no response body
     try {
-      console.log('ignored preflight:', await req.url())
+      console.log('ignored preflight 1:', await req.url())
     } catch (err) {
-      console.log('ignored preflight.')
+      console.log('ignored preflight 2.')
     }
     return false
   }
 
+  try {
+    await resp.json()
+  } catch(err) {
+    console.log('ignored preflight 3:', await req.url())
+    return false
+  }
+
   if (guard instanceof Array) {
-    try {
-      for (let i = 0; i < guard.length; i++) {
-        const rst = await responseGuard(resp, guard[i])
-        if (!rst) return false
-      }
-    } catch (err) {
-      console.log('response guard error:', err)
-      return false
+    for (let i = 0; i < guard.length; i++) {
+      const rst = await responseGuard(resp, guard[i])
+      if (!rst) return false
     }
 
     return true
