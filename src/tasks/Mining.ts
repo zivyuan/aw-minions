@@ -6,7 +6,7 @@ import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } fro
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
 import moment from "moment";
-import { responseGuard } from "../utils/pputils";
+import { responseGuard, safeGetJson } from "../utils/pputils";
 import { UTCtoGMT } from "../utils/datetime";
 import config from "../config";
 
@@ -211,7 +211,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardBalance]))
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return console.log('error data ', await resp.url())
+
     const tlm = parseFloat(dat.rows[0].balance)
     if (tlm !== this._balance) {
       this._balanceChanged = tlm - this._balance
@@ -228,7 +230,9 @@ export default class Mining extends BaseTask<IMiningResult> {
       return
 
     const count = this._assets.length
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return console.log('error data ', await resp.url())
+
     const newAssets = dat.data.filter(item =>
       (!this._assets.find(_t => _t.asset_id === item.asset_id))
     )
@@ -246,7 +250,9 @@ export default class Mining extends BaseTask<IMiningResult> {
       return
 
     const itemids = this._bagItems.items.map(item => item.asset_id)
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return console.log('error data ', await resp.url())
+
     const items = dat.rows
       .map(item => ({
         key: item.account,
@@ -269,7 +275,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, [AW_API_GET_TABLE_ROWS, this.guardMineStatus]))
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return console.log('error data ', await resp.url())
+
     if (dat.rows[0].last_mine !== this._mineStatus.last_mine) {
       this._mineStatus = dat.rows[0]
 
@@ -283,7 +291,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!await responseGuard(resp, AW_API_PUSH_TRANSACTION))
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return console.log('error data ', await resp.url())
+
     this._transaction = dat
     this._transactionOk = resp.ok()
     logger.debug('update trasaction', this._transaction)

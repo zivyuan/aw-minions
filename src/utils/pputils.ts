@@ -12,6 +12,7 @@ export enum ResponseGuardState {
   Pass,
   NotPass,
 }
+
 /**
  *
  * @param resp Response object
@@ -39,13 +40,6 @@ export const responseGuard = async (
     return false
   }
 
-  try {
-    await resp.json()
-  } catch(err) {
-    console.log('ignored preflight 3:', await req.url())
-    return false
-  }
-
   if (guard instanceof Array) {
     for (let i = 0; i < guard.length; i++) {
       const rst = await responseGuard(resp, guard[i])
@@ -65,5 +59,15 @@ export const responseGuard = async (
     }
 
     return false
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const safeGetJson = async (resp: HTTPResponse): Promise<any> => {
+  try {
+    const json = resp.json()
+    return json
+  } catch(err) {
+    return null
   }
 }
