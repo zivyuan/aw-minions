@@ -27,6 +27,11 @@ export interface TaskStep {
   [step: string]: StepHandle
 }
 
+export enum NextActionType {
+  Continue,
+  Stop
+}
+
 export interface InspectorHandle {
   (browser: Browser, page: Page): boolean
 }
@@ -207,7 +212,7 @@ export default class BaseTask<T> implements ITask<T> {
    * @param timeoutHandle Custom timeout handle, return false to continue to wait
    * @returns
    */
-  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => Promise<void | boolean>) {
+  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => Promise<NextActionType>) {
     if (!this._waitKeys[name]) this._waitKeys[name] = new Date().getTime()
 
     if (this.state !== TaskState.Running || (await func() === true)) {
@@ -220,7 +225,7 @@ export default class BaseTask<T> implements ITask<T> {
       if (elapsed > (timeout ? timeout : (config.mining.timeout * 1000))) {
         if (timeoutHandle) {
           const rst = await timeoutHandle()
-          if (rst === false) {
+          if (rst === NextActionType.Continue) {
             this._waitKeys[name] = new Date().getTime()
             this.waitFor(name, func, timeout)
             return

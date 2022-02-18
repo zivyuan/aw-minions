@@ -9,6 +9,8 @@ import { ITask, ITaskResult, TaskState } from "./tasks/BaseTask";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_BROWSER, DATA_KEY_COOKIE, DATA_KEY_MINING, IAccountInfo, IBrowserConfig, IMinionData, PageEventHandleObject, TaskObject } from "./types";
 import { randomUserAgent } from "./utils/useragent";
 import { merge } from "merge-anything";
+import { TIME_15_MINITE } from "./utils/constant";
+import { getAwakeTime } from "./utils/utils";
 
 export interface IMinionReports {
   reports: {
@@ -201,7 +203,12 @@ export default class Minion implements IMiningDataProvider {
         task.start()
           .then((rst: ITaskResult<any>) => {
             if (rst.awakeTime) {
-              pickedTask.awakeTime = rst.awakeTime
+              if (isNaN(rst.awakeTime)) {
+                logger.log('WARN: Task awakeTime INVALID, auto set to 15 minutes.')
+                pickedTask.awakeTime = getAwakeTime(TIME_15_MINITE)
+              } else {
+                pickedTask.awakeTime = rst.awakeTime
+              }
               pickedTask.awakeTimeStr = moment(rst.awakeTime).format('YYYY-MM-DD HH:mm:ss')
             }
             logger.log(`Task #${task.no} ${task.name} complete with state: ${TaskState[rst.state]}`)

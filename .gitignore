@@ -36,3 +36,5 @@ nohup.out
 cache/
 
 minions.json
+
+_*

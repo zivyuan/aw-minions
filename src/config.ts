@@ -41,6 +41,7 @@ const conf = <any>merge({
     port: '7890'
   },
   mining: {
+    maxAwakeDelay: 4 * 60,
     // Delay for out of esource, default 1 hour
     outOfResourceDelay: 60 * 60,
     // 120 seconds
