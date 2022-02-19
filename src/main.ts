@@ -11,7 +11,7 @@ import Minion from './Minion'
 import AWLogin from './tasks/AWLogin'
 import Mining from './tasks/Mining'
 // import ClaimStakeRewards from './tasks/ClaimStakeRewards'
-// import Report from './tasks/Report'
+import Report from './tasks/Report'
 
 interface IBotArguments {
   /**
@@ -210,7 +210,7 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   minion.addTask(AWLogin)
   minion.addTask(Mining)
   // minion.addTask(ClaimStakeRewards)
-  // minion.addTask(Report, false)
+  minion.addTask(Report, false)
   minion.start()
 })();
 

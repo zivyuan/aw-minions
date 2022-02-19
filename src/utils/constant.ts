@@ -5,6 +5,7 @@ export const PAGE_FILTER_SIGN = /cloud-wallet\/signing/i
 
 export const PAGE_WAXWALLET = 'WAXWALLET'
 export const PAGE_ALIEN_WORLDS = 'ALIEN_WORLDS'
+export const PAGE_ALIEN_WORLDS_TOOLS = 'ALIEN_WORLDS_TOOLS'
 
 export const URL_WAX_WALLET_LOGIN = 'https://all-access.wax.io/'
 export const URL_WAX_WALLET = 'https://wallet.wax.io/'
@@ -28,6 +29,7 @@ export const TIME_10_MINITE = 10 * TIME_MINITE
 export const TIME_15_MINITE = 15 * TIME_MINITE
 export const TIME_30_MINITE = 30 * TIME_MINITE
 export const TIME_HOUR = 60 * TIME_MINITE
+export const TIME_8_HOUR = 8 * TIME_HOUR
 export const TIME_HALF_HOUR = TIME_30_MINITE
 export const TIME_DAY = 24 * TIME_HOUR
 export const TIME_HALF_DAY = 12 * TIME_HOUR
