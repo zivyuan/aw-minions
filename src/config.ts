@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { merge } from 'merge-anything'
+import { TIME_HOUR, TIME_MINITE } from './utils/constant'
 
 const winWid = 1280
 const winHei = 600
@@ -62,7 +63,9 @@ const conf = <any>merge({
     timestamp: 'HH:mm:ss'
   },
   report: {
-    interval: 8 * 60 * 60 * 1000
+    interval: 8 * 60 * 60,
+    cloudFlareMin: 15,
+    cloudFlareMax: 45,
   }
 }, customConf)
 

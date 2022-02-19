@@ -9,6 +9,7 @@ import { responseGuard } from "../utils/pputils";
 import { getAwakeTime, random } from "../utils/utils";
 import BaseTask, { NextActionType, TaskState } from "./BaseTask"
 import { sleep } from 'sleep'
+import config from "../config";
 
 export interface IReportResult {
   state: number
@@ -111,7 +112,7 @@ export default class Report extends BaseTask<IReportResult> {
     }
 
     if (this._day !== 0) {
-      const delay = random(45, 15)
+      const delay = random(config.report.cloudFlareMax, config.report.cloudFlareMin)
       logger.debug(`Delay ${delay} seconds for next day...`)
       sleep(delay)
     }
@@ -156,7 +157,8 @@ export default class Report extends BaseTask<IReportResult> {
   private getNextReportTime(): number {
     const now = new Date()
     const start = new Date(moment(now).format('YYYY-MM-DD 00:00:00'))
-    const next = start.getTime() + Math.ceil(now.getTime() / TIME_8_HOUR) * TIME_8_HOUR
+    const interval = config.report.interval * 1000
+    const next = start.getTime() + Math.ceil(now.getTime() / interval) * interval
     const akt = getAwakeTime(next - now.getTime())
     return akt
   }
@@ -164,6 +166,7 @@ export default class Report extends BaseTask<IReportResult> {
   private async completeWithTimeout() {
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS_TOOLS)
     page.off(PageEmittedEvents.Response, this.updateHistory)
+    page.goto('https://www.google.com/')
     this.complete(TaskState.Canceled, 'Query timeout...', null, this.getNextReportTime())
   }
 }
