@@ -212,10 +212,10 @@ export default class BaseTask<T> implements ITask<T> {
    * @param timeoutHandle Custom timeout handle, return false to continue to wait
    * @returns
    */
-  protected async waitFor(name: string, func: () => Promise<void | boolean>, timeout = 0, timeoutHandle?: () => Promise<NextActionType>) {
+  protected async waitFor(name: string, func: () => Promise<NextActionType>, timeout = 0, timeoutHandle?: () => Promise<NextActionType>) {
     if (!this._waitKeys[name]) this._waitKeys[name] = new Date().getTime()
 
-    if (this.state !== TaskState.Running || (await func() === true)) {
+    if (this.state !== TaskState.Running || (await func() === NextActionType.Stop)) {
       delete this._waitKeys[name]
       return
     }

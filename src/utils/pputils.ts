@@ -61,7 +61,60 @@ export const safeGetJson = async (resp: HTTPResponse): Promise<any> => {
   try {
     const json = resp.json()
     return json
-  } catch(err) {
+  } catch (err) {
     return null
   }
+}
+
+/**
+ *
+ * @param selector Button selector
+ * @param content Button text
+ * @returns
+ */
+export const sureClick = async (page: Page, selector: string, content?: string, waitTime?: 5000): Promise<boolean> => {
+
+  let delay = 0
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const delayClick = async (resolve, reject) => {
+
+    try {
+      const btn = await page.$(selector)
+      if (!btn) {
+        throw new Error('button query error')
+      }
+
+      const txt = await btn.evaluate(item => item.textContent)
+      if (content && txt !== content)
+        throw new Error('button not found')
+
+      if (delay === 0) {
+        delay = new Date().getTime()
+        throw new Error('button first found, set delay.')
+      }
+      const elapsed = new Date().getTime() - delay
+      if (elapsed < waitTime) {
+        throw new Error('wait next tick...')
+      } else if (elapsed > 30000) {
+        return reject('Timeout')
+      }
+
+      delay = -1
+      await btn.click()
+
+    } catch (err) {
+      if (delay === -1) {
+        reject(err)
+      } else {
+        setTimeout(delayClick, 300, resolve, reject)
+      }
+      return
+    }
+
+    return resolve(true)
+  }
+
+  return new Promise((resolve, reject) => {
+    delayClick(resolve, reject)
+  })
 }

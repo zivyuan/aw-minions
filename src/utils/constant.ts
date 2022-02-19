@@ -19,6 +19,7 @@ export const AW_API_ASSETS_INFO = 'https://atomicassets-api.alienworlds.io/atomi
 
 export const URL_ALIEN_WORLDS = 'https://play.alienworlds.io/'
 export const URL_ALIEN_WORLDS_APPROVE = 'https://all-access.wax.io/cloud-wallet/signing/'
+export const URL_ALIEN_WORLDS_INVENTORY = 'https://play.alienworlds.io/inventory'
 
 // Quick seconds
 export const TIME_MINITE = 60 * 1000

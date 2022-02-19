@@ -1,12 +1,12 @@
 import BaseTask, { NextActionType, TaskState } from "./BaseTask";
 import { getAwakeTime, random } from "../utils/utils";
 import Logger from "../Logger";
-import { PAGE_ALIEN_WORLDS, AW_API_GET_TABLE_ROWS, AW_API_PUSH_TRANSACTION, TIME_5_MINITE, AW_API_ASSETS_INFO, TIME_MINITE, TIME_10_MINITE } from "../utils/constant";
+import { PAGE_ALIEN_WORLDS, AW_API_GET_TABLE_ROWS, AW_API_PUSH_TRANSACTION, TIME_5_MINITE, AW_API_ASSETS_INFO, TIME_MINITE, URL_ALIEN_WORLDS_INVENTORY } from "../utils/constant";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } from "../types";
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
 import moment from "moment";
-import { responseGuard } from "../utils/pputils";
+import { responseGuard, sureClick } from "../utils/pputils";
 import { UTCtoGMT } from "../utils/datetime";
 import config from "../config";
 import { sleep } from 'sleep';
@@ -15,6 +15,7 @@ const CLS_BTN_MINE = '.css-rrm59m'
 const TXT_BTN_MINE = 'Mine'
 const CLS_BTN_CLAIM = '.css-rrm59m'
 const TXT_BTN_CLAIM = 'Claim Mine'
+// const CLS_BTN_APPROVE_LOGIN = '.error-container button[type="submit"]'
 const CLS_BTN_APPROVE = '.authorize-transaction-container .react-ripples button'
 
 const STEP_PREPARE = 'prepare'
@@ -298,8 +299,13 @@ export default class Mining extends BaseTask<IMiningResult> {
       return
 
     if (!resp.ok()) {
-      logger.log('update trasaction fail with status: ', resp.status(), resp.statusText())
-      this.nextStep(STEP_CONFIRM)
+      this._transactionOk = false
+      this._transactionUpdated = true
+      try {
+        this._transaction = await resp.json()
+      }catch(err) {
+        this._transaction = `Transaction fail with status ${resp.status()}, ${resp.statusText()}`
+      }
       return
     }
 
@@ -344,6 +350,17 @@ export default class Mining extends BaseTask<IMiningResult> {
   private updatePageStatus = () => {
     logger.debug('dom content loaded')
     this._pageReady = true
+
+    // Wait two miniute for page ready
+    const waitReadyEvent = async (): Promise<NextActionType> => {
+      if (this._readyEventFired)
+        return NextActionType.Stop
+      else
+        return NextActionType.Continue
+    }
+
+    sleep(3)
+    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE)
   }
 
   private async stepPrepare() {
@@ -357,47 +374,13 @@ export default class Mining extends BaseTask<IMiningResult> {
     page.on(PageEmittedEvents.Response, this.updateBagInfo)
     page.on(PageEmittedEvents.Response, this.updateMineStatus)
     page.on(PageEmittedEvents.Response, this.updateTransaction)
-    page.reload({
+    page.goto(URL_ALIEN_WORLDS_INVENTORY, {
       timeout: TIME_5_MINITE
     })
       .catch(err => {
         logger.log('Page reload error: ')
         logger.log(err.message)
-
-        // TODO: Which error shold be terminate proccess
-        // Sometimes timeout will not break mining proccess
-
-        // page.off(PageEmittedEvents.DOMContentLoaded, this.updatePageStatus)
-        // page.off(PageEmittedEvents.Response, this.updateBanance)
-        // page.off(PageEmittedEvents.Response, this.updateAssetsInfo)
-        // page.off(PageEmittedEvents.Response, this.updateBagInfo)
-        // page.off(PageEmittedEvents.Response, this.updateMineStatus)
-        // page.off(PageEmittedEvents.Response, this.updateTransaction)
-
-        // this.complete(TaskState.Canceled, err.message, null, getAwakeTime(TIME_MINITE), config.mining.maxAwakeDelay * 1000)
       })
-
-    // Wait two miniute for page ready
-    const waitReadyEvent = async (): Promise<void | boolean> => {
-      if (this._readyEventFired)
-        return true
-    }
-
-    const checkIfPageStucked = async (): Promise<NextActionType> => {
-        try {
-          // Sometimes page will not do auto login,
-          //  be stucked in start page
-          const btn = await page.$('span.css-rrm59m')
-          if (btn) {
-            await btn.click()
-            return NextActionType.Continue
-          }
-        } catch (err) { }
-        return NextActionType.Stop
-    }
-
-    sleep(3)
-    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE, checkIfPageStucked)
   }
 
   private determinStage() {
@@ -421,25 +404,15 @@ export default class Mining extends BaseTask<IMiningResult> {
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
     await page.bringToFront()
 
-    let clicked = 0
-    const clickMine = async (): Promise<boolean | void> => {
-      let btn = await page.$(CLS_BTN_MINE)
-      if (btn) {
-        const txt = await btn.evaluate(item => item.textContent)
-        if (txt !== TXT_BTN_MINE) {
-          btn = null
-        }
-      }
-      //
-      if (!clicked && btn) {
-        await btn.click({
-          delay: random(2000, 1000)
-        })
-        logger.debug('Mine button clicked')
-        clicked = new Date().getTime()
-      } else if (clicked && !btn) {
+    // Set a 5 seconds delay to wait page script running
+    const clickMine = async (): Promise<NextActionType> => {
+      const clicked = sureClick(page, CLS_BTN_MINE, TXT_BTN_MINE)
+      if (clicked) {
+        sleep(2)
         this.nextStep(STEP_CLAIM)
-        return true
+        return NextActionType.Stop
+      } else {
+        return NextActionType.Continue
       }
     }
     this.waitFor('Wait for mine button', clickMine, 0.5 * TIME_MINITE)
@@ -450,36 +423,24 @@ export default class Mining extends BaseTask<IMiningResult> {
     await page.bringToFront()
 
     const doApprove = async (popup: Page) => {
-      const clickApproveButton = async (): Promise<void | boolean> => {
-        try {
-          const btnLogin = await popup.$('.error-container button[type="submit"]')
-          if (btnLogin) {
-            // Reqeuir login, abort curren task
-            popup.close()
-            const msg = 'Session expried, login required.'
-            logger.log(msg)
-            const akt = getAwakeTime(30 * TIME_MINITE, config.mining.maxAwakeDelay * 1000)
-            this.complete(TaskState.Canceled, msg, null, akt)
-            return true
-          }
-
-          const btnApprove = await popup.$(CLS_BTN_APPROVE)
-          if (btnApprove) {
-            await popup.click(CLS_BTN_APPROVE)
-            return true
-          }
-        } catch (err) { }
-      }
-      // popup.once(PageEmittedEvents.DOMContentLoaded, () => {
-      // })
       popup.once(PageEmittedEvents.Close, () => {
         this.nextStep(STEP_CONFIRM)
       })
-      this.waitFor('Wait for approve', clickApproveButton, TIME_10_MINITE)
+
+      const clickApproveButton = async (): Promise<NextActionType> => {
+        try {
+          await sureClick(popup, CLS_BTN_APPROVE)
+          return NextActionType.Stop
+        } catch(err) {
+          logger.debug('Approve button click attempt failed', err)
+        }
+        return NextActionType.Continue
+      }
+      this.waitFor('Wait for approve', clickApproveButton, TIME_5_MINITE)
     }
     page.once(PageEmittedEvents.Popup, doApprove)
 
-    const waitClaimButton = async (): Promise<void | boolean> => {
+    const waitClaimButton = async (): Promise<NextActionType> => {
       try {
         let btn = await page.$(CLS_BTN_CLAIM)
         if (btn) {
@@ -496,19 +457,21 @@ export default class Mining extends BaseTask<IMiningResult> {
           await btn.click({
             delay: random(1600, 1000)
           })
-          return true
+          return NextActionType.Stop
         }
       } catch (err) { }
+
+      return NextActionType.Continue
     }
-    this.waitFor('Wait for Claim button', waitClaimButton, TIME_10_MINITE)
+    this.waitFor('Wait for Claim button', waitClaimButton, TIME_5_MINITE)
   }
 
   private async stepConfirm() {
     logger.log('📜 Confirming...')
-    const confirmMining = async (): Promise<void | boolean> => {
-      if (!this._transactionUpdated) return
-      if (this._transactionOk && !this._mineStatusUpdated) return
-      if (this._transactionOk && !this._balanceUpdated) return
+    const confirmMining = async (): Promise<NextActionType> => {
+      if (!this._transactionUpdated) return NextActionType.Continue
+      if (this._transactionOk && !this._mineStatusUpdated) return NextActionType.Continue
+      if (this._transactionOk && !this._balanceUpdated) return NextActionType.Continue
 
       if (this._transactionOk) {
         const now = new Date()
@@ -525,15 +488,18 @@ export default class Mining extends BaseTask<IMiningResult> {
         logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
         this.complete(TaskState.Completed, 'success', rst, akt)
       } else {
-        const message = this._transaction.error.details[0].message
+        const message = (this._transaction && this._transaction.error)
+          ? this._transaction.error.details[0].message
+          : 'Server error when mining, it\'s maybe a server problem'
         const akt = getAwakeTime(45 * TIME_MINITE, config.mining.maxAwakeDelay * 1000)
         logger.log(`❌ ${message}.`)
         logger.log(`⏰ Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
         this.complete(TaskState.Completed, message, null, akt)
       }
 
-      return true
+      return NextActionType.Stop
     }
+
     const confirmTimeout = async (): Promise<NextActionType> => {
       if (this._transactionOk) {
         logger.log('❓ Transaction seems ok, but balance and miner status not change.')
