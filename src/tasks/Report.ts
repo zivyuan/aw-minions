@@ -3,11 +3,11 @@ import { HTTPResponse, PageEmittedEvents } from "puppeteer";
 import DingBot from "../DingBot";
 import Logger from "../Logger";
 import { DATA_KEY_ACCOUNT_INFO, IAccountInfo } from "../types";
-import {PAGE_ALIEN_WORLDS_TOOLS, TIME_10_MINITE, TIME_8_HOUR, TIME_DAY } from "../utils/constant";
+import { PAGE_ALIEN_WORLDS_TOOLS, TIME_15_MINITE, TIME_8_HOUR, TIME_DAY, TIME_MINITE } from "../utils/constant";
 import { UTCtoGMT } from "../utils/datetime";
 import { responseGuard } from "../utils/pputils";
 import { getAwakeTime, random } from "../utils/utils";
-import BaseTask, { TaskState } from "./BaseTask"
+import BaseTask, { NextActionType, TaskState } from "./BaseTask"
 import { sleep } from 'sleep'
 
 export interface IReportResult {
@@ -45,6 +45,7 @@ export default class Report extends BaseTask<IReportResult> {
   private _day = 0
   private _maxDay = 5
   private _account: IAccountInfo
+  private _timeMark = 0
 
   private updateHistory = async (resp: HTTPResponse) => {
     if (!(await responseGuard(resp, 'https://api.alienworlds.io/v1/alienworlds/mines?miner=')))
@@ -76,7 +77,30 @@ export default class Report extends BaseTask<IReportResult> {
     this._account = this.provider.getData<IAccountInfo>(DATA_KEY_ACCOUNT_INFO)
     this._today = new Date(moment().format('YYYY-MM-DD')).getTime()
 
+    const _checkTimeout = async (): Promise<NextActionType> => {
+      if (this.state === TaskState.Completed
+        || this.state === TaskState.Canceled) {
+        return NextActionType.Stop
+      }
+
+      const elapsed = new Date().getTime() - this._timeMark
+      if (elapsed > (2 * TIME_MINITE)) {
+        logger.log('Load mining log [' + this._day + '] timeout')
+        this.completeWithTimeout()
+        return NextActionType.Stop
+      }
+
+      return NextActionType.Continue
+    }
+    const _timeoutHandle = async (): Promise<NextActionType> => {
+      logger.log('Load mining log timeout')
+      this.completeWithTimeout()
+      return NextActionType.Stop
+    }
+
+    this._timeMark = new Date().getTime()
     page.on(PageEmittedEvents.Response, this.updateHistory)
+    this.waitFor('report time out checker', _checkTimeout, TIME_15_MINITE, _timeoutHandle)
     this.loadNextDay()
   }
 
@@ -99,8 +123,9 @@ export default class Report extends BaseTask<IReportResult> {
 
     logger.log('Load log for', date)
     logger.debug('Query log:', url)
+    this._timeMark = new Date().getTime()
     page.goto(url)
-      .catch((err) => {
+      .catch(() => {
         // Task delay
         // page.off(PageEmittedEvents.Response, this.updateHistory)
         // logger.log('Mine log query failed. Retry after 5 minutes.')
@@ -125,10 +150,20 @@ export default class Report extends BaseTask<IReportResult> {
     const content = `${this._account.username}\n(${this._account.account})\n${report.join('\n')} `
     DingBot.getInstance().text(content)
 
+    this.complete(TaskState.Completed, '', null, this.getNextReportTime())
+  }
+
+  private getNextReportTime(): number {
     const now = new Date()
     const start = new Date(moment(now).format('YYYY-MM-DD 00:00:00'))
     const next = start.getTime() + Math.ceil(now.getTime() / TIME_8_HOUR) * TIME_8_HOUR
     const akt = getAwakeTime(next - now.getTime())
-    this.complete(TaskState.Completed, '', null, akt)
+    return akt
+  }
+
+  private async completeWithTimeout() {
+    const page = await this.provider.getPage(PAGE_ALIEN_WORLDS_TOOLS)
+    page.off(PageEmittedEvents.Response, this.updateHistory)
+    this.complete(TaskState.Canceled, 'Query timeout...', null, this.getNextReportTime())
   }
 }
