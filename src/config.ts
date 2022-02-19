@@ -1,7 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 import { merge } from 'merge-anything'
-import { TIME_HOUR, TIME_MINITE } from './utils/constant'
 
 const winWid = 1280
 const winHei = 600

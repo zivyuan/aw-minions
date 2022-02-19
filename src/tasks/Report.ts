@@ -3,7 +3,7 @@ import { HTTPResponse, PageEmittedEvents } from "puppeteer";
 import DingBot from "../DingBot";
 import Logger from "../Logger";
 import { DATA_KEY_ACCOUNT_INFO, IAccountInfo } from "../types";
-import { PAGE_ALIEN_WORLDS_TOOLS, TIME_15_MINITE, TIME_8_HOUR, TIME_DAY, TIME_MINITE } from "../utils/constant";
+import { PAGE_ALIEN_WORLDS_TOOLS, TIME_DAY, TIME_MINITE } from "../utils/constant";
 import { UTCtoGMT } from "../utils/datetime";
 import { responseGuard } from "../utils/pputils";
 import { getAwakeTime, random } from "../utils/utils";
@@ -99,9 +99,10 @@ export default class Report extends BaseTask<IReportResult> {
       return NextActionType.Stop
     }
 
+    const timeout = config.report.cloudFlareMax * this._maxDay * .8
     this._timeMark = new Date().getTime()
     page.on(PageEmittedEvents.Response, this.updateHistory)
-    this.waitFor('report time out checker', _checkTimeout, TIME_15_MINITE, _timeoutHandle)
+    this.waitFor('report time out checker', _checkTimeout, Math.floor(timeout * 1000), _timeoutHandle)
     this.loadNextDay()
   }
 
@@ -125,15 +126,26 @@ export default class Report extends BaseTask<IReportResult> {
     logger.log('Load log for', date)
     logger.debug('Query log:', url)
     this._timeMark = new Date().getTime()
-    page.goto(url)
-      .catch(() => {
-        // Task delay
-        // page.off(PageEmittedEvents.Response, this.updateHistory)
-        // logger.log('Mine log query failed. Retry after 5 minutes.')
-        // logger.debug('Page open error:', err)
-        // logger.debug(this._history)
-        // const akt = getAwakeTime(TIME_10_MINITE)
-        // this.complete(TaskState.Canceled, 'Log query failed.', null, akt)
+    const urllibs = [
+      'https://www.google.com/',
+      'https://github.com/',
+      'https://twitter.com/',
+      'https://facebook.com/'
+    ]
+    page.goto(urllibs[Math.floor(Math.random() * 4)])
+      .catch(() => { })
+      .finally(() => {
+        sleep(5)
+        page.goto(url)
+          .catch(() => {
+            // Task delay
+            // page.off(PageEmittedEvents.Response, this.updateHistory)
+            // logger.log('Mine log query failed. Retry after 5 minutes.')
+            // logger.debug('Page open error:', err)
+            // logger.debug(this._history)
+            // const akt = getAwakeTime(TIME_10_MINITE)
+            // this.complete(TaskState.Canceled, 'Log query failed.', null, akt)
+          })
       })
     this._day++
   }
