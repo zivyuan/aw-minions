@@ -174,10 +174,14 @@ const createBrowser = async (argv: IBotArguments): Promise<Browser> => {
   Logger.account = argv.account[0].trim()
   logger = new Logger('Main')
 
-  if (argv.dev) {
-    if (fs.existsSync('./cache/window-lock')) {
-      fs.unlinkSync('./cache/window-lock')
-    }
+  const lockfile = './cache/window-lock'
+  if (fs.existsSync(lockfile)) {
+    try {
+      const lock = JSON.parse(fs.readFileSync(lockfile).toString())
+      if (lock && lock.account === argv.account[0].trim()) {
+        fs.unlinkSync('./cache/window-lock')
+      }
+    } catch (err) { }
   }
 
   if (argv.username.length > 1) {
