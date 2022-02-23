@@ -208,7 +208,7 @@ export default class BaseTask<T> implements ITask<T> {
    * Wait loop for no block process and controlable
    * @param name A short describe
    * @param func function
-   * @param timeout number
+   * @param timeout number. Default timeout is 2 minutes, config key: mining.timeout
    * @param timeoutHandle Custom timeout handle, return false to continue to wait
    * @returns
    */
@@ -230,13 +230,13 @@ export default class BaseTask<T> implements ITask<T> {
             this.waitFor(name, func, timeout)
             return
           }
-        } else {
-          const msg = `${name} timeout`
-          const akt = getAwakeTime(15 * TIME_MINITE)
-          logger.setScope(this.name)
-          logger.log(`${msg}, next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
-          this.complete(TaskState.Timeout, msg, null, akt)
         }
+
+        const msg = `${name} timeout`
+        const akt = getAwakeTime(15 * TIME_MINITE)
+        logger.setScope(this.name)
+        logger.log(`${msg}, next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
+        this.complete(TaskState.Timeout, msg, null, akt)
         delete this._waitKeys[name]
       } else {
         this.waitFor(name, func, timeout)
