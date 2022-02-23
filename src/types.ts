@@ -41,6 +41,7 @@ export interface IMiningData {
   total: number
   rewards: number
   stakeTotal: number
+  lastClaimDate?: Date
   stakeRewardTotal: number
   stakeRewardLast: number
   counter: number
@@ -50,7 +51,7 @@ export interface IMiningData {
   cpuWeight?: number
   netWeight?: number
   ramQuota?: number
-  ramUsage?: number
+  ramUsage?: number,
 }
 
 export interface ITaskSavableData {

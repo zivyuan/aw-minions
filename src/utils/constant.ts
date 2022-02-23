@@ -4,6 +4,7 @@ export const PAGE_FILTER_SIGN = /cloud-wallet\/signing/i
 
 
 export const PAGE_WAXWALLET = 'WAXWALLET'
+export const PAGE_WAXWALLET_STACK = 'WAXWALLET'
 export const PAGE_ALIEN_WORLDS = 'ALIEN_WORLDS'
 export const PAGE_ALIEN_WORLDS_TOOLS = 'ALIEN_WORLDS_TOOLS'
 
@@ -12,6 +13,8 @@ export const URL_WAX_WALLET = 'https://wallet.wax.io/'
 export const URL_WAX_WALLET_STAKING = 'https://wallet.wax.io/staking-rewards'
 
 export const WAX_API_SESSION = 'https://all-access.wax.io/api/session'
+export const WAX_API_GET_ACCOUNT = 'https://chain.wax.io/v1/chain/get_account'
+export const WAX_API_PUSH_TRANSACTION = 'https://chain.wax.io/v1/chain/push_transaction'
 export const AW_API_PUSH_TRANSACTION = 'https://aw-guard.yeomen.ai/v1/chain/push_transaction'
 export const AW_API_GET_ACCOUNT = 'https://aw-guard.yeomen.ai/v1/chain/get_account'
 export const AW_API_GET_TABLE_ROWS = 'https://aw-guard.yeomen.ai/v1/chain/get_table_rows'

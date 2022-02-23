@@ -1,12 +1,21 @@
-import moment from "moment";
 import Logger from "../Logger";
-import { PAGE_FILTER_SIGN, PAGE_WAX_WALLET_TESTER, URL_WAX_WALLET_STAKING } from "../utils/constant";
-import BaseTask, { TaskState } from "./BaseTask";
+import { PAGE_WAXWALLET_STACK, TIME_15_MINITE, TIME_5_MINITE, TIME_DAY, TIME_MINITE, URL_WAX_WALLET_STAKING, WAX_API_GET_ACCOUNT, WAX_API_PUSH_TRANSACTION } from "../utils/constant";
+import BaseTask, { NextActionType, TaskState } from "./BaseTask";
 import { sleep } from 'sleep'
-import { random } from "../utils/utils";
-import { DATA_KEY_MINING, IMiningData } from "../types";
+import { getAwakeTime, random } from "../utils/utils";
+import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } from "../types";
+import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
+import { responseGuard, safeGetJson, sureClick } from "../utils/pputils";
+import moment from 'moment'
+import config from '../config'
+import { UTCtoGMT } from "../utils/datetime";
 
 const CLS_BTN_APPROVE = '.authorize-transaction-container .react-ripples button'
+
+const STEP_PREPARE = 'prepare'
+const STEP_CLAIM = 'claim'
+const STEP_SKIP = 'skip'
+const STEP_CONFIRM = 'confirm'
 export interface IStackRewardsResult {
   claimed: number
   balance: number
@@ -16,6 +25,15 @@ export interface IStackRewardsResult {
 let logger
 
 export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
+
+  private _readyEventFired = false
+  private _account: IAccountInfo
+  private _miningData: IMiningData
+  private _lastClaimDataUpdated = false
+  private _transactionOk = false
+  private _transactionUpdated = false
+  private _transaction = null
+
   constructor() {
     super('ClaimRewards')
 
@@ -23,96 +41,191 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       logger = new Logger(this.name)
     }
 
-    this.registerStep('claim', this.stepClaim, true)
+    this.registerStep(STEP_PREPARE, this.initialClaim, true)
+    this.registerStep(STEP_CLAIM, this.stepClaim)
+    this.registerStep(STEP_SKIP, this.stepSkip)
+    this.registerStep(STEP_CONFIRM, this.stepConfirm)
   }
 
-  private async stepClaim() {
-    const selBtnStaking = '.stake-card:nth-child(2) .button-tertiary'
-    const selStakedWAXP = '.stake-card:nth-child(1) .__react_component_tooltip+div'
+  prepare(): boolean {
+    this._account = this.provider.getData(DATA_KEY_ACCOUNT_INFO)
+    this._miningData = this.provider.getData(DATA_KEY_MINING)
+    return super.prepare()
+  }
 
-    logger.log('Search for claiming ...')
-    const page = await this.provider.getPage(PAGE_WAX_WALLET_TESTER, URL_WAX_WALLET_STAKING)
-    // await page.bringToFront()
-    const url = await page.evaluate(`document.location.href`)
 
-    if (url.indexOf(URL_WAX_WALLET_STAKING) > -1) {
-      await page.reload()
-    } else {
-      await page.goto(URL_WAX_WALLET_STAKING)
+  /**
+   * Get account info from API response
+   * @param resp HTTPResponse object
+   * @returns
+   */
+  private guardAccountInfo = async (resp: HTTPResponse): Promise<boolean> => {
+    const req = resp.request()
+    const payload = JSON.parse(req.postData())
+    if (payload.account_name !== this._account.account) return false
+
+    return true
+  }
+
+  private updateMiningData = async (resp: HTTPResponse) => {
+    if (!await responseGuard(resp, [WAX_API_GET_ACCOUNT, this.guardAccountInfo]))
+      return
+
+    const dat = await safeGetJson(resp)
+    if (dat) {
+      const time = UTCtoGMT(dat.voter_info.last_claim_time)
+      this._miningData.lastClaimDate = time
+      this._lastClaimDataUpdated = true
+      this.fireReadyEvent()
     }
+  }
 
-    // Wait for page ajax update
-    sleep(3)
+  private updateTransaction = async (resp: HTTPResponse) => {
+    if (!await responseGuard(resp, WAX_API_PUSH_TRANSACTION))
+      return
 
-    let staked = parseFloat((await page.$eval(selStakedWAXP, item => item.textContent)).trim())
-    staked = Math.round(staked * 10000000) / 10000000
-    let balance = parseFloat(await page.$eval('div[data-tip]', item => item.textContent))
-
-    if (staked === 0) {
-      const awakeTime = new Date().getTime() + 60 * 60 * 1000
-      const msg = 'You need stake some WAX tokens and vote for a guilds to earn your WAX rewards.'
-      logger.log(msg)
-      this.complete(TaskState.Completed, `${msg}. I'll check it after 1 hour.`, {
-        staked,
-        claimed: 0,
-        balance: balance
-      }, awakeTime)
+    if (!resp.ok()) {
+      this._transactionOk = false
+      this._transactionUpdated = true
+      try {
+        this._transaction = await resp.json()
+      }catch(err) {
+        this._transaction = `Transaction fail with status ${resp.status()}, ${resp.statusText()}`
+      }
       return
     }
 
-    sleep(3)
+    this._transaction = await resp.json()
+    this._transactionOk = resp.ok()
+    logger.debug('update trasaction', this._transaction)
+    this._transactionUpdated = true
+    this.fireReadyEvent()
+  }
 
-    await page.waitForSelector(selBtnStaking)
-    const btns = await page.$$(selBtnStaking)
-    const btnLabels = await page.$$eval(selBtnStaking, items => items.map(it => it.textContent))
+  private fireReadyEvent(): boolean {
+    if (!this._lastClaimDataUpdated) return false
+    this._readyEventFired = true
 
-    const count = /^\d{2}:\d{2}:\d{2}$/
-    let claimAmount = parseFloat(btnLabels[1])
-    claimAmount = isNaN(claimAmount) ? 0 : claimAmount
-    claimAmount = Math.round(claimAmount * 10000000) / 10000000
-    let awakeTime = new Date().getTime() + 24 * 60 * 60 * 1000
-    if (claimAmount === 0) {
-      // Nothing to do
-      logger.log('No rewards found. You should stake some WAXP.')
-      awakeTime = new Date().getTime() + 60 * 60 * 1000
+    this.determineClaim()
+    return true
+  }
 
-    } else if (count.test(btnLabels[2].trim())) {
-      // Count down
-      const countDown = btnLabels[2].split(':')
-        .map((item, idx) => parseInt(item) * ([3600, 60, 1][idx]))
-        .reduce((a, b) => a + b) * 1000
-      awakeTime = new Date().getTime() + countDown + 30000
-      logger.log(`Rewards not ready, claim will be available at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
+  private async initialClaim() {
+    const page = await this.provider.getPage(PAGE_WAXWALLET_STACK)
+    await page.bringToFront()
 
-    } else {
-      // claim button
-      await btns[2].click()
-      logger.log('Approve claim...')
-      const approvePage = await this.provider.getPage(PAGE_FILTER_SIGN, true)
-
-      await approvePage.waitForSelector(CLS_BTN_APPROVE, { timeout: 5 * 60 * 1000 })
-      await approvePage.click(CLS_BTN_APPROVE, {
-        delay: 500 + random(2000)
+    page.on('response', this.updateMiningData)
+    page.on('response', this.updateTransaction)
+    sleep(2)
+    logger.debug('goto', URL_WAX_WALLET_STAKING)
+    page.goto(URL_WAX_WALLET_STAKING)
+      .then((info) => {
+        logger.debug('Page ready', info)
       })
-      // TODO: Click Approve button
+      .catch((err) => {
+        console.log(err)
+      })
+  }
 
-      balance += claimAmount
-      awakeTime += 30000
-      logger.log(`${claimAmount} WAXP claimed, current total: ${balance} WAXP`)
-      logger.log(`Next claim is after 24 hours at ${moment(awakeTime).format('YYYY-MM-DD HH:mm:ss')}`)
+  private async removeListener() {
+    const page = await this.provider.getPage(PAGE_WAXWALLET_STACK)
+    page.off('response', this.updateMiningData)
+    page.off('response', this.updateTransaction)
+  }
+
+  private async determineClaim() {
+    const elapsed = new Date().getTime() - this._miningData.lastClaimDate.getTime()
+    if (elapsed < TIME_DAY) {
+      //
+      this.nextStep(STEP_SKIP)
+    } else {
+      this.nextStep(STEP_CLAIM)
+    }
+  }
+
+  private async stepClaim() {
+    const page = await this.provider.getPage(PAGE_WAXWALLET_STACK)
+    await page.bringToFront()
+
+    const doApprove = async (popup: Page) => {
+      popup.once(PageEmittedEvents.Close, () => {
+        this.nextStep(STEP_CONFIRM)
+      })
+
+      const clickApproveButton = async (): Promise<NextActionType> => {
+        try {
+          await sureClick(popup, CLS_BTN_APPROVE)
+          return NextActionType.Stop
+        } catch (err) {
+          logger.debug('Approve button click attempt failed', err)
+        }
+        return NextActionType.Continue
+      }
+      this.waitFor('Wait for approve', clickApproveButton, TIME_5_MINITE)
+    }
+    page.once(PageEmittedEvents.Popup, doApprove)
+
+    const CLS_BTN_CLAIM = '.stake-card .button-tertiary'
+    const waitClaimButton = async (): Promise<NextActionType> => {
+      try {
+        let btn = null
+        const btns = await page.$$(CLS_BTN_CLAIM)
+        if (btns && btns.length === 4) {
+          btn = btns[3]
+          const txt = await btn.evaluate(item => item.textContent)
+          if (txt.indexOf('Claim Earnings') !== 0) {
+            btn = null
+          }
+        }
+
+        if (btn) {
+          logger.log('🐝 Claiming...')
+          await btn.click({
+            delay: random(1600, 1000)
+          })
+          return NextActionType.Stop
+        }
+      } catch (err) { }
+
+      return NextActionType.Continue
+    }
+    this.waitFor('Wait for Claim button', waitClaimButton, TIME_5_MINITE)
+  }
+
+  private async stepSkip() {
+    this.removeListener()
+    const diff = this._miningData.lastClaimDate.getTime() - new Date().getTime() + TIME_DAY
+    const akt = getAwakeTime(diff < TIME_MINITE ? TIME_MINITE : diff)
+    logger.log(`Reward already claimed. Next attempt at ${moment(akt).format(config.datetimeFormat)}`)
+    this.complete(TaskState.Canceled, 'Wait for next claim', null, akt)
+  }
+
+  private async stepConfirm() {
+    const checkTransaction = async (): Promise<NextActionType> => {
+      if (!this._readyEventFired) return NextActionType.Continue
+      if (!this._transactionUpdated) return NextActionType.Continue
+
+      if (this._transactionOk) {
+        logger.log('Claim success.')
+        const akt = getAwakeTime(TIME_DAY)
+        this.complete(TaskState.Completed, 'Claim success', null, akt)
+      } else {
+        const message = (this._transaction && this._transaction.error)
+          ? this._transaction.error.details[0].message
+          : 'Server error when mining, it\'s maybe a server problem'
+        logger.log(message)
+        const akt = getAwakeTime(TIME_15_MINITE)
+        this.complete(TaskState.Completed, 'Claim success', null, akt)
+      }
+
+      this.removeListener()
+
+      return NextActionType.Stop
     }
 
-    this.complete(TaskState.Completed, '', {
-      claimed: claimAmount,
-      balance: balance,
-      staked: staked
-    }, awakeTime)
-
-    const conf = this.provider.getData<IMiningData>(DATA_KEY_MINING)
-    conf.stakeTotal = staked
-    this.provider.setData(DATA_KEY_MINING, conf)
-    this.provider.saveData()
-
-    page.reload()
+    this.waitFor('confirm claim stake', checkTransaction, 2 * TIME_MINITE, async (): Promise<NextActionType> => {
+      this.removeListener()
+      return NextActionType.Stop
+    })
   }
 }
