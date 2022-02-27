@@ -148,10 +148,6 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     await page.bringToFront()
 
     const doApprove = async (popup: Page) => {
-      popup.once(PageEmittedEvents.Close, () => {
-        this.nextStep(STEP_CONFIRM)
-      })
-
       const clickApproveButton = async (): Promise<NextActionType> => {
         try {
           await sureClick(popup, CLS_BTN_APPROVE)
@@ -183,6 +179,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
           await btn.click({
             delay: random(1600, 1000)
           })
+          this.nextStep(STEP_CONFIRM)
           return NextActionType.Stop
         }
       } catch (err) { }
@@ -223,6 +220,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
       return NextActionType.Stop
     }
 
+    logger.log('Confirming...')
     this.waitFor('confirm claim stake', checkTransaction, 2 * TIME_MINITE, async (): Promise<NextActionType> => {
       this.removeListener()
       return NextActionType.Stop
