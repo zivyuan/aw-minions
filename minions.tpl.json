@@ -1,0 +1,25 @@
+{
+  // Notice API
+  "dingding": {
+    "webhook": "dingding-webhook-address",
+    "secret": "dingding-secret"
+  },
+
+  // Minions config
+  "minion": {
+    // Delays between two task
+    "taskInterval": 60,
+    "windowLockTimeout": 600,
+    "maxAwakeDelay": 320
+  },
+
+  "log": {
+    "timestamp": "YYYY-MM-DD HH:mm:ss"
+  },
+
+  "report": {
+    "interval": 28800,
+    "cloudFlareMin": 60,
+    "cloudFlareMax": 180
+  }
+}
