@@ -11,6 +11,8 @@ import { UTCtoGMT } from "../utils/datetime";
 import config from "../config";
 import { sleep } from 'sleep';
 
+const CLS_BTN_START = '.css-rrm59m'
+const TXT_BTN_START = 'Start Now'
 const CLS_BTN_MINE = '.css-rrm59m'
 const TXT_BTN_MINE = 'Mine'
 const CLS_BTN_CLAIM = '.css-rrm59m'
@@ -358,9 +360,30 @@ export default class Mining extends BaseTask<IMiningResult> {
       else
         return NextActionType.Continue
     }
+    const waitTimeout = async (): Promise<NextActionType> => {
+      try {
+        const page = await this.provider.getPage(PAGE_ALIEN_WORLDS)
+        await page.bringToFront();
+        const btn = await page.$(CLS_BTN_START)
+        if (btn) {
+          let count = 3
+          while(count > 0) {
+            const txt = await btn.$eval(CLS_BTN_START, item => item.textContent)
+            if (txt === TXT_BTN_START) {
+              await btn.click()
+              return NextActionType.Continue
+            }
+            sleep(15)
+            count--
+          }
+        }
+      } catch (err){ }
+
+      return NextActionType.Stop
+    }
 
     sleep(3)
-    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE)
+    this.waitFor('Prepare for mine', waitReadyEvent, 2 * TIME_MINITE, waitTimeout)
   }
 
   private async stepPrepare() {
