@@ -543,10 +543,10 @@ export default class Mining extends BaseTask<IMiningResult> {
       logger.log(`⏰ Next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
       this.complete(TaskState.Timeout, 'Confirming timeout', null, akt)
 
-      try {
-        // Close siging window if exists
-        const page = await this.provider.getPages()
-      }
+      // try {
+      //   // Close siging window if exists
+      //   const page = await this.provider.getPages()
+      // }
 
       return NextActionType.Stop
     }
