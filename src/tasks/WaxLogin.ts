@@ -5,6 +5,7 @@ import { PAGE_WAX_WALLET_TESTER, PAGE_WAXWALLET as PAGE_WAX_WALLET, WAX_API_SESS
 import DingBot from "../DingBot"
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_COOKIE, IAccountInfo, CookieObject } from "../types"
 import { PageEmittedEvents } from "puppeteer"
+import { safeGetJson } from "../utils/pputils"
 
 export interface IWaxLoginResult {
   account: string
@@ -110,11 +111,9 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
 
         } else {
           // Api error, try again later, max try 5 times
-          let dat
+          const dat = await safeGetJson(resp)
           let resons: string[]
-          try {
-            dat = await resp.json()
-
+          if (dat) {
             if (dat.challengeToken) {
               //
               // TODO:
@@ -126,9 +125,9 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
             } else {
               resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
             }
-          } catch (err) {
+          } else {
             resons = [
-              'Response parse error.', err.message,
+              'Response parse error.',
               `Raw: ${JSON.stringify(dat)}`
             ]
           }

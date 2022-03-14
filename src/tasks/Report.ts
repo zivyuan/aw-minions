@@ -5,7 +5,7 @@ import Logger from "../Logger";
 import { DATA_KEY_ACCOUNT_INFO, IAccountInfo } from "../types";
 import { PAGE_ALIEN_WORLDS_TOOLS, TIME_DAY, TIME_MINITE } from "../utils/constant";
 import { UTCtoGMT } from "../utils/datetime";
-import { responseGuard } from "../utils/pputils";
+import { responseGuard, safeGetJson } from "../utils/pputils";
 import { getAwakeTime, random } from "../utils/utils";
 import BaseTask, { NextActionType, TaskState } from "./BaseTask"
 import { sleep } from 'sleep'
@@ -52,7 +52,9 @@ export default class Report extends BaseTask<IReportResult> {
     if (!(await responseGuard(resp, 'https://api.alienworlds.io/v1/alienworlds/mines?miner=')))
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return
+
     const datestr = (await resp.url()).replace(/.*&from=([TZ\d-:.]+)&.*/i, '$1')
     logger.debug('parse date from url', datestr)
     const date = UTCtoGMT(datestr)

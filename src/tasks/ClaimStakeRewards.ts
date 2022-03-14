@@ -87,15 +87,16 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     if (!resp.ok()) {
       this._transactionOk = false
       this._transactionUpdated = true
-      try {
-        this._transaction = await resp.json()
-      }catch(err) {
+      this._transaction = await safeGetJson(resp)
+      if (!this._transaction) {
         this._transaction = `Transaction fail with status ${resp.status()}, ${resp.statusText()}`
       }
       return
     }
 
-    this._transaction = await resp.json()
+    this._transaction = await safeGetJson(resp)
+    if (!this._transaction) return
+
     this._transactionOk = resp.ok()
     logger.debug('update trasaction', this._transaction)
     this._transactionUpdated = true

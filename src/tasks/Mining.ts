@@ -6,7 +6,7 @@ import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo, IMiningData } fro
 import { IMiningDataProvider } from "../Minion";
 import { HTTPResponse, Page, PageEmittedEvents } from "puppeteer";
 import moment from "moment";
-import { responseGuard, sureClick } from "../utils/pputils";
+import { responseGuard, safeGetJson, sureClick } from "../utils/pputils";
 import { UTCtoGMT } from "../utils/datetime";
 import config from "../config";
 import { sleep } from 'sleep';
@@ -219,7 +219,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!resp.ok())
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return
+
     const tlm = parseFloat(dat.rows[0].balance)
     if (tlm !== this._balance) {
       this._balanceChanged = tlm - this._balance
@@ -238,7 +240,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!resp.ok())
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return
+
     const count = this._assets.length
     const newAssets = dat.data.filter(item =>
       (!this._assets.find(_t => _t.asset_id === item.asset_id))
@@ -259,7 +263,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!resp.ok())
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return
+
     const itemids = this._bagItems.items.map(item => item.asset_id)
     const items = dat.rows
       .map(item => ({
@@ -286,7 +292,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!resp.ok())
       return
 
-    const dat = await resp.json()
+    const dat = await safeGetJson(resp)
+    if (!dat) return
+
     if (dat.rows[0].last_mine !== this._mineStatus.last_mine) {
       this._mineStatus = dat.rows[0]
 
@@ -303,15 +311,16 @@ export default class Mining extends BaseTask<IMiningResult> {
     if (!resp.ok()) {
       this._transactionOk = false
       this._transactionUpdated = true
-      try {
-        this._transaction = await resp.json()
-      }catch(err) {
+      this._transaction = await safeGetJson(resp)
+      if (!this._transaction) {
         this._transaction = `Transaction fail with status ${resp.status()}, ${resp.statusText()}`
       }
       return
     }
 
-    this._transaction = await resp.json()
+    this._transaction = await safeGetJson(resp)
+    if (!this._transaction) return
+
     this._transactionOk = resp.ok()
     logger.debug('update trasaction', this._transaction)
     this._transactionUpdated = true
@@ -534,9 +543,14 @@ export default class Mining extends BaseTask<IMiningResult> {
       logger.log(`⏰ Next attempt at ${moment(akt).format(config.mining.datetimeFormat)}`)
       this.complete(TaskState.Timeout, 'Confirming timeout', null, akt)
 
+      try {
+        // Close siging window if exists
+        const page = await this.provider.getPages()
+      }
+
       return NextActionType.Stop
     }
-    this.waitFor('Wait for confirm', confirmMining, 0, confirmTimeout)
+    this.waitFor('Wait for confirm', confirmMining, TIME_5_MINITE, confirmTimeout)
   }
 
   protected async cleanUp() {

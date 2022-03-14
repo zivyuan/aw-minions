@@ -3,7 +3,7 @@ import Logger from "../Logger";
 import { PAGE_ALIEN_WORLDS, PAGE_ALIEN_WORLDS_TESTER, URL_ALIEN_WORLDS, AW_API_GET_ACCOUNT } from "../utils/constant";
 import { HTTPResponse, PageEmittedEvents } from "puppeteer";
 import { DATA_KEY_ACCOUNT_INFO, DATA_KEY_MINING, IAccountInfo } from "../types";
-import { sureClick } from "../utils/pputils";
+import { safeGetJson, sureClick } from "../utils/pputils";
 
 export interface IAWLoginResult {
   account: string
@@ -46,7 +46,9 @@ export default class AWLogin extends BaseTask<IAWLoginResult> {
         unregisterEvent()
 
         if (resp.ok()) {
-          const dat = await resp.json()
+          const dat = await safeGetJson(resp)
+          if (!dat) return
+
           this.provider.setData(DATA_KEY_MINING, {
             cpuLimit: dat.cpu_limit,
             netLimit: dat.net_limit,

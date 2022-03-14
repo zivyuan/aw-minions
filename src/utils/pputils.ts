@@ -58,12 +58,11 @@ export const responseGuard = async (
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const safeGetJson = async (resp: HTTPResponse): Promise<any> => {
+  let json
   try {
-    const json = resp.json()
-    return json
-  } catch (err) {
-    return null
-  }
+    json = await resp.json()
+  } catch (err) {}
+  return json
 }
 
 /**
