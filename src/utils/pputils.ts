@@ -61,7 +61,11 @@ export const safeGetJson = async (resp: HTTPResponse): Promise<any> => {
   let json
   try {
     json = await resp.json()
-  } catch (err) {}
+  } catch (err) {
+    const url = resp.url()
+    console.error('safeGetJson error with: ', url)
+    console.error(err)
+  }
   return json
 }
 
