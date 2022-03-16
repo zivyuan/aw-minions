@@ -56,17 +56,15 @@ export const responseGuard = async (
   }
 }
 
+// !!! Use sefaGetJson() to avoid bot crash because a response with no data
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const safeGetJson = async (resp: HTTPResponse): Promise<any> => {
+export const safeGetJson = async (resp: HTTPResponse): Promise<null | any> => {
   return new Promise((resolve) => {
     resp.json()
       .then(data => {
         resolve(data)
       })
-      .catch(err => {
-        const url = resp.url()
-        console.error('safeGetJson error with: ', url)
-        console.error(err)
+      .catch(() => {
         resolve(null)
       })
   })
