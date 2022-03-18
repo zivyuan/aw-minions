@@ -115,15 +115,19 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
           let resons: string[]
           if (dat) {
             if (dat.challengeToken) {
-              //
-              // TODO:
-              //
+              // Require e-mail verify code
               // {"challengeToken":"a424c879ccd645439d4ff9970e06220d"}
-              // Request e-mail verify code
               resons = ['e-mail verify code required.']
-
+            } else if (dat.token2fa) {
+              // Require 2FA verfiy code
+              // {"token2fa":"a8f4b6f9221c05ef5764b1e35e9d3bb6"}
+              resons = ['2FA verify code required.']
             } else {
-              resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
+              if (dat.errors) {
+                resons = dat.errors.map(item => `[${status}:${item.error_type}] ${item.message}`)
+              } else {
+                resons = [JSON.stringify(dat)]
+              }
             }
           } else {
             resons = [

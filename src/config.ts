@@ -46,6 +46,22 @@ const conf = <any>merge({
     outOfResourceDelay: 60 * 60,
     // 120 seconds
     timeout: 120,
+
+    //
+    "smartSpeed": [
+      // [hour, interval seconds]
+      [0, "slow"],
+      [6, "fast"],
+      [10, "slow"],
+      [18, "fast"],
+      [23, "slow"]
+    ],
+    "speeds": {
+      // Mining every 40 minute
+      "slow": 2400,
+      // Mining every 18 minute
+      "fast": 1080
+    }
   },
   //
   dingding: {
