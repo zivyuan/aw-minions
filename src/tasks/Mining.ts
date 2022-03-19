@@ -54,11 +54,10 @@ const getMiningSpeed = (conf: [number, string][], hour: number) => {
   let i;
   for (i = 0; i < conf.length; i++) {
     if (hour < conf[i][0]) {
-      console.log(conf[i - 1]);
-      return conf[i - 1][1]
+      return conf[i - 1][1];
     }
   }
-  return conf[i - 1][1]
+  return conf[i - 1][1];
 };
 
 export default class Mining extends BaseTask<IMiningResult> {
@@ -109,11 +108,10 @@ export default class Mining extends BaseTask<IMiningResult> {
   private getSmartAwakeTime(cooldown: number, rnd?: number): number {
     const now = new Date();
     const hour = now.getHours();
-    const speed = getMiningSpeed(config.mining.smartSpeed, hour)
-    let interval = config.mining.speeds[speed] * 1000
-    if (interval < cooldown)
-      interval = cooldown
-    return getAwakeTime(interval, rnd)
+    const speed = getMiningSpeed(config.mining.smartSpeed, hour);
+    let interval = config.mining.speeds[speed] * 1000;
+    if (interval < cooldown) interval = cooldown;
+    return getAwakeTime(interval, rnd);
   }
 
   private getCooldown(): number {
@@ -448,7 +446,7 @@ export default class Mining extends BaseTask<IMiningResult> {
     this.waitFor(
       'Prepare for mine',
       waitReadyEvent,
-      2 * TIME_MINITE,
+      3 * TIME_MINITE,
       waitTimeout,
     );
   };
@@ -457,6 +455,28 @@ export default class Mining extends BaseTask<IMiningResult> {
     logger.log('🔧 Prepare...');
     const page = await this.provider.getPage(PAGE_ALIEN_WORLDS);
     await page.bringToFront();
+
+    // Try click start button until ready event fired
+    const clickStart = async (): Promise<void> => {
+      if (this.state !== TaskState.Running) return
+      if (this._readyEventFired) return;
+
+      try {
+        const btn = await page.$(CLS_BTN_START);
+        if (btn) {
+          const txt = await btn.$eval(
+            CLS_BTN_START,
+            (item) => item.textContent,
+          );
+          if (txt === TXT_BTN_START) {
+            await btn.click();
+          }
+        }
+      } catch (err) {}
+
+      sleep(5)
+      await clickStart();
+    };
 
     page.on(PageEmittedEvents.DOMContentLoaded, this.updatePageStatus);
     page.on(PageEmittedEvents.Response, this.updateBalance);
@@ -467,6 +487,9 @@ export default class Mining extends BaseTask<IMiningResult> {
     page
       .goto(URL_ALIEN_WORLDS_INVENTORY, {
         timeout: TIME_5_MINITE,
+      })
+      .then(async () => {
+        await clickStart();
       })
       .catch((err) => {
         logger.log('Page reload error: ');

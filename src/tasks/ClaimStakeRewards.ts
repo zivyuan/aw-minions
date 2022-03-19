@@ -105,6 +105,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
 
   private fireReadyEvent(): boolean {
     if (!this._lastClaimDataUpdated) return false
+    if (this._readyEventFired) return false
     this._readyEventFired = true
 
     this.determineClaim()
@@ -163,10 +164,7 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
     page.once(PageEmittedEvents.Popup, doApprove)
 
     const CLS_BTN_CLAIM = '.stake-card .button-tertiary'
-    let clickState = ''
     const waitClaimButton = async (): Promise<NextActionType> => {
-      if (clickState === 'clicked') return NextActionType.Stop
-
       try {
         let btn = null
         const btns = await page.$$(CLS_BTN_CLAIM)
@@ -178,13 +176,11 @@ export default class ClaimStakeRewards extends BaseTask<IStackRewardsResult> {
           }
         }
 
-        if (btn && clickState === '') {
+        if (btn) {
           logger.log('🐝 Claiming...')
-          clickState = 'clicking'
           await btn.click({
             delay: random(1600, 1000)
           })
-          clickState = 'clicked'
           this.nextStep(STEP_CONFIRM)
           return NextActionType.Stop
         }
