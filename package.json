@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "A miner robot for Alien Worlds.",
   "engines": {
-    "node": ">= 16.13 <17"
+    "node": ">= 16.13"
   },
   "devDependencies": {
     "@types/dingtalk-robot-sender": "^1.1.1",
