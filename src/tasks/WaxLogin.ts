@@ -162,13 +162,13 @@ export class WaxLogin extends BaseTask<IWaxLoginResult> {
     sleep(1)
     if (username) {
       await page.type(SEL_IPT_USERNAME, username, {
-        delay: 15,
+        delay: 160,
       });
     }
     sleep(1)
     if (password) {
       await page.type(SEL_IPT_PASSWORD, password, {
-        delay: 16,
+        delay: 180,
       });
     }
 
